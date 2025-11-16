@@ -1,4 +1,8 @@
-﻿using Microsoft.VisualStudio.Extensibility.UI;
+﻿//  Diploma Thesis 2025
+//  Alexandra Apró
+//  University of Szeged
+
+using Microsoft.VisualStudio.Extensibility.UI;
 
 namespace ArcExtension.UI.Controls;
 

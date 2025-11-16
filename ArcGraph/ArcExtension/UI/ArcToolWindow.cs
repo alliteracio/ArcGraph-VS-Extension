@@ -1,4 +1,8 @@
-﻿using ArcExtension.UI.Controls;
+﻿//  Diploma Thesis 2025
+//  Alexandra Apró
+//  University of Szeged
+
+using ArcExtension.UI.Controls;
 using Microsoft.VisualStudio.Extensibility;
 using Microsoft.VisualStudio.Extensibility.ToolWindows;
 using Microsoft.VisualStudio.RpcContracts.RemoteUI;

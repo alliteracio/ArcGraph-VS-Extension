@@ -1,4 +1,8 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+﻿//  Diploma Thesis 2025
+//  Alexandra Apró
+//  University of Szeged
+
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.VisualStudio.Extensibility;
 
 namespace ArcExtension.UI;
