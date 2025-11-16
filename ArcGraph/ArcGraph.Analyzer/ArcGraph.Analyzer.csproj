@@ -1,0 +1,28 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<OutputType>Exe</OutputType>
+		<TargetFramework>net8.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<!-- Roslyn workspace packages -->
+		<PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.8.0" />
+		<PackageReference Include="Microsoft.CodeAnalysis.Workspaces.MSBuild" Version="4.8.0" />
+		<!-- MSBuild locator -->
+		<PackageReference Include="Microsoft.Build.Locator" Version="1.6.1" />
+		<!-- Runtime dependencies MSBuild / resolver may require -->
+		<PackageReference Include="System.Configuration.ConfigurationManager" Version="8.0.0" />
+		<PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="8.0.0" />
+		<PackageReference Include="System.Threading.Tasks.Dataflow" Version="8.0.0" />
+	</ItemGroup>
+
+	<!-- Prevent copying MSBuild assemblies into the analyzer output (we want to use installed MSBuild) -->
+	<ItemGroup>
+		<PackageReference Update="Microsoft.Build" ExcludeAssets="runtime" />
+		<PackageReference Update="Microsoft.Build.Framework" ExcludeAssets="runtime" />
+		<PackageReference Update="Microsoft.Build.Tasks.Core" ExcludeAssets="runtime" />
+		<PackageReference Update="Microsoft.Build.Utilities.Core" ExcludeAssets="runtime" />
+	</ItemGroup>
+</Project>
