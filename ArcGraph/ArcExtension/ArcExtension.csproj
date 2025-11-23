@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net8.0-windows</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -8,13 +8,15 @@
     <None Remove="ArcWindowControl.xaml" />
   </ItemGroup>
   <ItemGroup>
-    <EmbeddedResource Include="UI\Controls\ArcWindowControl.xaml">
+	  <EmbeddedResource Include="UI\Controls\ArcWindowControl.xaml">
       <Generator>MSBuild:Compile</Generator>
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </EmbeddedResource>
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <PackageReference Include="MessagePack" Version="2.5.187" />
     <PackageReference Include="Microsoft.VisualStudio.Extensibility.Sdk" Version="17.9.2092" PrivateAssets="all" />
     <PackageReference Include="Microsoft.VisualStudio.Extensibility.Build" Version="17.9.2092" PrivateAssets="all" />
   </ItemGroup>

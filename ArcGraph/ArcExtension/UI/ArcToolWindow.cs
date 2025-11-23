@@ -12,10 +12,12 @@ namespace ArcExtension.UI;
 [VisualStudioContribution]
 internal class ArcToolWindow : ToolWindow
 {
+    private ArcWorkspaceWatcher _workspaceWatcher;
     public ArcToolWindow(VisualStudioExtensibility extensibility)
     : base(extensibility)
     {
         Title = "ArcGraph";
+        _workspaceWatcher = new ArcWorkspaceWatcher(extensibility);
     }
 
     public override ToolWindowConfiguration ToolWindowConfiguration => new()
@@ -25,8 +27,13 @@ internal class ArcToolWindow : ToolWindow
         AllowAutoCreation = true,
     };
 
+    public override async Task InitializeAsync(CancellationToken cancellationToken)
+    {
+        await _workspaceWatcher.StartAsync(cancellationToken);
+    }
+
     public override Task<IRemoteUserControl> GetContentAsync(CancellationToken cancellationToken)
     {
-        return Task.FromResult<IRemoteUserControl>(new ArcWindowControl());
+        return Task.FromResult<IRemoteUserControl>(new ArcWindowControl(_workspaceWatcher.Data));
     }
 }

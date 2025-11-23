@@ -8,8 +8,8 @@ namespace ArcExtension.UI.Controls;
 
 internal class ArcWindowControl : RemoteUserControl
 {
-    public ArcWindowControl()
-        : base(dataContext: null)
+    public ArcWindowControl(ArcWorkspaceViewModel vm)
+        : base(dataContext: vm)
     {
     }
 }
