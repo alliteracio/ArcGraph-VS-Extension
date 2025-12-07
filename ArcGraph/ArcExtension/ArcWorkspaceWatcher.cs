@@ -4,6 +4,8 @@
 
 using ArcCore.Analysis;
 using ArcCore.GraphModel;
+using ArcCore.Layering;
+using ArcCore.Rules;
 using Microsoft.VisualStudio.Extensibility;
 using Microsoft.VisualStudio.ProjectSystem.Query;
 using System.Windows; 
@@ -40,44 +42,54 @@ public sealed class ArcWorkspaceWatcher :
 
     public async Task AnalyzeSolutionAsync(CancellationToken cancellationToken)
     {
-        try
+        var solutionPath = Data.SolutionPath;
+        if (string.IsNullOrWhiteSpace(solutionPath))
         {
-            var solutionPath = Data.SolutionPath;
-
-            if (string.IsNullOrWhiteSpace(solutionPath))
-            {
-                await SetStatusMessageAsync("Nincs elérhető solution path az elemzéshez.", cancellationToken);
-                return;
-            }
+            await SetStatusMessageAsync("Nincs elérhető solution path az elemzéshez.", cancellationToken);
+            return;
+        }
 
             await SetStatusMessageAsync($"Solution elemzése folyamatban...\n{solutionPath}", cancellationToken);
 
+        try
+        {
             var analyzer = new SolutionDependencyAnalyzer();
-            DependencyGraph graph;
+            var graph = await analyzer.AnalyzeSolutionAsync(solutionPath, cancellationToken);
 
-            try
-            {
-                graph = await analyzer.AnalyzeSolutionAsync(solutionPath, cancellationToken);
-            }
-            catch (Exception ex)
-            {
-                await SetStatusMessageAsync(
-                    "Hiba az AnalyzeSolutionAsync hívásban: " +
-                    ex.GetType().Name + " - " + ex.Message,
-                    cancellationToken);
+            LayerConfig cfg;
+            var configPath = Path.Combine(Path.GetDirectoryName(solutionPath) ?? "", "layer.config.json");
+            if (File.Exists(configPath))
+                cfg = LayerConfigLoader.LoadFromFile(configPath);
+            else
+                cfg = new LayerConfig();
 
-                return;
-            }
+            var assigner = new LayerAssigner(cfg);
+            assigner.AssignLayers(graph);
+
+            var allowed = new List<(Layer, Layer)>
+        {
+            (Layer.UI, Layer.Application),
+            (Layer.Application, Layer.Domain),
+            (Layer.Application, Layer.Infrastructure),
+            (Layer.Domain, Layer.Infrastructure),
+            (Layer.UI, Layer.UI),
+            (Layer.Application, Layer.Application),
+            (Layer.Domain, Layer.Domain),
+            (Layer.Infrastructure, Layer.Infrastructure)
+        };
+
+            var rules = new LayerRules(allowed);
+            rules.MarkLayerViolations(graph);
+            rules.MarkHighDegreeNodes(graph, inDegreeThreshold: 40, outDegreeThreshold: 40);
 
             await RunOnUiAsync(() =>
             {
-                Data.StatusMessage = $"Elemzés kész. Node-ok: {graph.Nodes.Count}, élek: {graph.Edges.Count}.";
+                Data.StatusMessage = $"Elemzés kész. Nodes: {graph.Nodes.Count}, Edges: {graph.Edges.Count}. Violations: {graph.Edges.Count(e => e.IsViolation)}";
             }, cancellationToken);
         }
         catch (Exception ex)
         {
-            Data.StatusMessage = "Váratlan hiba az AnalyzeSolutionAsync-ben: "
-                                 + ex.GetType().Name + " - " + ex.Message;
+            await SetStatusMessageAsync($"Elemzési hiba: {ex.GetType().Name}: {ex.Message}", cancellationToken);
         }
     }
 
