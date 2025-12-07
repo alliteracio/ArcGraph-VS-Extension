@@ -16,6 +16,20 @@ public sealed class ArcWorkspaceViewModel : ObservableObject
     [DataMember]
     public ObservableCollection<string> Files { get; } = new();
 
+    private string? _solutionPath;
+    public string? SolutionPath
+    {
+        get => _solutionPath;
+        set
+        {
+            if (_solutionPath != value)
+            {
+                _solutionPath = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
     private string _statusMessage = string.Empty;
 
     [DataMember]

@@ -55,12 +55,18 @@ public sealed class ArcWorkspaceWatcher :
             await RunOnUiAsync(() =>
             {
                 Data.Files.Clear();
+                Data.SolutionPath = null;
                 Data.StatusMessage = "Nincs megnyitott solution. Nyiss meg egy solutiont, majd kattints a Refresh gombra.";
             }, cancellationToken);
 
             return;
         }
-      
+
+        await RunOnUiAsync(() =>
+        {
+            Data.SolutionPath = singleSolution.Path;
+        }, cancellationToken);
+
         _solutionSubscription?.Dispose();
 
         _solutionSubscription = await singleSolution
