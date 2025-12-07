@@ -2,12 +2,14 @@
 //  Alexandra Apró
 //  University of Szeged
 
+using ArcCore.GraphModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.VisualStudio.Extensibility.UI;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.Runtime.Serialization;
+using System.Threading;
 
 namespace ArcExtension;
 
@@ -45,6 +47,12 @@ public sealed class ArcWorkspaceViewModel : ObservableObject
     [DataMember]
     public IAsyncCommand AnalyzeCommand { get; }
 
+    private DependencyGraph? _dependencyGraph;
+    public DependencyGraph? DependencyGraph
+    {
+        get => _dependencyGraph;
+        set => SetProperty(ref _dependencyGraph, value);
+    }
 
     public event Func<CancellationToken, Task>? RefreshRequested;
     public event Func<CancellationToken, Task>? AnalyzeRequested;
@@ -57,7 +65,7 @@ public sealed class ArcWorkspaceViewModel : ObservableObject
         Files.CollectionChanged += OnFilesCollectionChanged;
     }
 
-    private Task ExecuteRefreshAsync(object? parameter, CancellationToken ct) 
+    private Task ExecuteRefreshAsync(object? parameter, CancellationToken ct)
         => RefreshRequested is not null ? RefreshRequested.Invoke(ct) : Task.CompletedTask;
 
     private Task ExecuteAnalyzeAsync(object? parameter, CancellationToken ct)
@@ -65,7 +73,6 @@ public sealed class ArcWorkspaceViewModel : ObservableObject
 
     private void OnFilesCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
-   
         if (Files.Count > 0 && !string.IsNullOrEmpty(StatusMessage))
         {
             StatusMessage = string.Empty;

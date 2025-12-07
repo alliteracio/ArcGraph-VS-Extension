@@ -5,6 +5,7 @@
 using ArcCore.GraphModel;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using System.Linq;
 
 namespace ArcCore.Analysis;
 
@@ -69,12 +70,82 @@ public class SolutionAnalyzer
 
                 graph.Nodes[nodeId] = node;
             }
+         
+            if (typeDecl.BaseList != null)
+            {
+                foreach (var baseTypeSyntax in typeDecl.BaseList.Types)
+                {
+                    var baseTypeInfo = semanticModel.GetTypeInfo(baseTypeSyntax.Type);
+                    var baseType = baseTypeInfo.Type as INamedTypeSymbol;
+                    if (baseType != null)
+                    {
+                        var baseId = baseType.ToDisplayString();
+                        if (baseId != nodeId)
+                            AddEdge(graph, nodeId, baseId, DependencyKind.Inheritance);
+                    }
+                }
+            }
+
+            var fieldDecls = typeDecl.DescendantNodes()
+                .OfType<FieldDeclarationSyntax>();
+
+            foreach (var fieldDecl in fieldDecls)
+            {
+                var fieldTypeSyntax = fieldDecl.Declaration.Type;
+                var fieldType = semanticModel.GetTypeInfo(fieldTypeSyntax).Type as INamedTypeSymbol;
+                if (fieldType != null)
+                {
+                    var targetId = fieldType.ToDisplayString();
+                    if (targetId != nodeId)
+                        AddEdge(graph, nodeId, targetId, DependencyKind.Field);
+                }
+            }
+
+            var propDecls = typeDecl.DescendantNodes()
+                .OfType<PropertyDeclarationSyntax>();
+
+            foreach (var propDecl in propDecls)
+            {
+                var propTypeSyntax = propDecl.Type;
+                var propType = semanticModel.GetTypeInfo(propTypeSyntax).Type as INamedTypeSymbol;
+                if (propType != null)
+                {
+                    var targetId = propType.ToDisplayString();
+                    if (targetId != nodeId)
+                        AddEdge(graph, nodeId, targetId, DependencyKind.Property);
+                }
+            }
 
             var methodDecls = typeDecl.DescendantNodes()
                 .OfType<MethodDeclarationSyntax>();
 
             foreach (var methodDecl in methodDecls)
-            {
+            {               
+                if (methodDecl.ReturnType != null)
+                {
+                    var returnType = semanticModel.GetTypeInfo(methodDecl.ReturnType).Type as INamedTypeSymbol;
+                    if (returnType != null)
+                    {
+                        var targetId = returnType.ToDisplayString();
+                        if (targetId != nodeId)
+                            AddEdge(graph, nodeId, targetId, DependencyKind.ReturnType);
+                    }
+                }
+
+                foreach (var param in methodDecl.ParameterList.Parameters)
+                {
+                    if (param.Type != null)
+                    {
+                        var paramType = semanticModel.GetTypeInfo(param.Type).Type as INamedTypeSymbol;
+                        if (paramType != null)
+                        {
+                            var targetId = paramType.ToDisplayString();
+                            if (targetId != nodeId)
+                                AddEdge(graph, nodeId, targetId, DependencyKind.ParameterType);
+                        }
+                    }
+                }
+
                 var invocations = methodDecl.DescendantNodes()
                     .OfType<InvocationExpressionSyntax>();
 
@@ -93,13 +164,60 @@ public class SolutionAnalyzer
                     if (targetId == nodeId)
                         continue;
 
-                    AddEdge(graph, nodeId, targetId);
+                    AddEdge(graph, nodeId, targetId, DependencyKind.MethodCall);
+                }
+
+                var creations = methodDecl.DescendantNodes()
+                    .OfType<ObjectCreationExpressionSyntax>();
+
+                foreach (var creation in creations)
+                {
+                    var typeInfo = semanticModel.GetTypeInfo(creation);
+                    var createdType = typeInfo.Type as INamedTypeSymbol;
+                    if (createdType != null)
+                    {
+                        var targetId = createdType.ToDisplayString();
+                        if (targetId != nodeId)
+                            AddEdge(graph, nodeId, targetId, DependencyKind.ObjectCreation);
+                    }
+                }
+            }
+
+            var ctorDecls = typeDecl.DescendantNodes()
+                .OfType<ConstructorDeclarationSyntax>();
+
+            foreach (var ctor in ctorDecls)
+            {
+                if (ctor.Initializer != null)
+                {
+                    var symbolInfo = semanticModel.GetSymbolInfo(ctor.Initializer);
+                    var methodSymbol = symbolInfo.Symbol as IMethodSymbol;
+                    var targetType = methodSymbol?.ContainingType;
+                    if (targetType != null)
+                    {
+                        var targetId = targetType.ToDisplayString();
+                        if (targetId != nodeId)
+                            AddEdge(graph, nodeId, targetId, DependencyKind.MethodCall);
+                    }
+                }
+
+                var creations = ctor.DescendantNodes().OfType<ObjectCreationExpressionSyntax>();
+                foreach (var creation in creations)
+                {
+                    var typeInfo = semanticModel.GetTypeInfo(creation);
+                    var createdType = typeInfo.Type as INamedTypeSymbol;
+                    if (createdType != null)
+                    {
+                        var targetId = createdType.ToDisplayString();
+                        if (targetId != nodeId)
+                            AddEdge(graph, nodeId, targetId, DependencyKind.ObjectCreation);
+                    }
                 }
             }
         }
     }
 
-    private static void AddEdge(DependencyGraph graph, string fromId, string toId)
+    private static void AddEdge(DependencyGraph graph, string fromId, string toId, DependencyKind kind)
     {
         if (!graph.Nodes.ContainsKey(toId))
         {
@@ -111,14 +229,15 @@ public class SolutionAnalyzer
             };
         }
 
-        var edge = graph.Edges.FirstOrDefault(e => e.FromNodeId == fromId && e.ToNodeId == toId);
+        var edge = graph.Edges.FirstOrDefault(e => e.FromNodeId == fromId && e.ToNodeId == toId && e.Kind == kind);
         if (edge is null)
         {
             edge = new GraphEdge
             {
                 FromNodeId = fromId,
                 ToNodeId = toId,
-                Weight = 0
+                Weight = 0,
+                Kind = kind
             };
             graph.Edges.Add(edge);
         }

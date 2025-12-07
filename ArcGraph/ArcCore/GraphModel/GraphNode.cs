@@ -4,11 +4,12 @@
 
 namespace ArcCore.GraphModel;
 
-public class GraphNode
+public sealed class GraphNode
 {
-    public string Id { get; set; } = "";
-    public string Name { get; set; } = "";
-    public string Namespace { get; set; } = "";
-    public Layer Layer { get; set; } = Layer.Unknown;
+    public string Id { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string Namespace { get; set; } = string.Empty;
     public NodeRole Role { get; set; } = new();
+    public override string ToString() => Id;
+    public Layer Layer { get; set; } = Layer.Unknown;
 }
