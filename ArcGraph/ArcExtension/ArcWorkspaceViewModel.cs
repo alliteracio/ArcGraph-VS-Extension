@@ -3,6 +3,7 @@
 //  University of Szeged
 
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using Microsoft.VisualStudio.Extensibility.UI;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
@@ -41,23 +42,26 @@ public sealed class ArcWorkspaceViewModel : ObservableObject
 
     [DataMember]
     public IAsyncCommand RefreshCommand { get; }
+    [DataMember]
+    public IAsyncCommand AnalyzeCommand { get; }
+
 
     public event Func<CancellationToken, Task>? RefreshRequested;
+    public event Func<CancellationToken, Task>? AnalyzeRequested;
 
     public ArcWorkspaceViewModel()
     {
         RefreshCommand = new AsyncCommand(ExecuteRefreshAsync);
+        AnalyzeCommand = new AsyncCommand(ExecuteAnalyzeAsync);
 
         Files.CollectionChanged += OnFilesCollectionChanged;
     }
 
-    private Task ExecuteRefreshAsync(object? parameter, CancellationToken ct)
-    {
-        if (RefreshRequested is not null)
-            return RefreshRequested.Invoke(ct);
+    private Task ExecuteRefreshAsync(object? parameter, CancellationToken ct) 
+        => RefreshRequested is not null ? RefreshRequested.Invoke(ct) : Task.CompletedTask;
 
-        return Task.CompletedTask;
-    }
+    private Task ExecuteAnalyzeAsync(object? parameter, CancellationToken ct)
+       => AnalyzeRequested?.Invoke(CancellationToken.None) ?? Task.CompletedTask;
 
     private void OnFilesCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {

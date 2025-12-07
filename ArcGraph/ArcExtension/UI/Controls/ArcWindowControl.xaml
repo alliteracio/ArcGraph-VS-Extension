@@ -11,14 +11,20 @@
 
         <StackPanel Grid.Row="0" Margin="8">
             <TextBlock Text="{Binding StatusMessage}"
-                       Foreground="Red"
-                       TextWrapping="Wrap"
-                       Margin="0,0,0,8" />
+               Foreground="Red"
+               TextWrapping="Wrap"
+               Margin="0,0,0,8" />
 
-            <Button Content="Refresh"
-                    Width="80"
-                    Margin="0,0,0,8"
-                    Command="{Binding RefreshCommand}" />
+            <StackPanel Orientation="Horizontal">
+                <Button Content="Refresh"
+                Width="80"
+                Margin="0,0,8,0"
+                Command="{Binding RefreshCommand}" />
+
+                <Button Content="Analyze"
+                Width="80"
+                Command="{Binding AnalyzeCommand}" />
+            </StackPanel>
         </StackPanel>
 
         <TextBlock Grid.Row="1"

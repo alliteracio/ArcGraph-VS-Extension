@@ -2,6 +2,8 @@
 //  Alexandra Apró
 //  University of Szeged
 
+using ArcCore.Analysis;
+using ArcCore.GraphModel;
 using Microsoft.VisualStudio.Extensibility;
 using Microsoft.VisualStudio.ProjectSystem.Query;
 using System.Windows; 
@@ -32,12 +34,60 @@ public sealed class ArcWorkspaceWatcher :
 
         _started = true;
         Data.RefreshRequested += OnRefreshRequestedAsync;
+        Data.AnalyzeRequested += OnAnalyzeRequestedAsync;
         await SetupSubscriptionsAsync(cancellationToken);
+    }
+
+    public async Task AnalyzeSolutionAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var solutionPath = Data.SolutionPath;
+
+            if (string.IsNullOrWhiteSpace(solutionPath))
+            {
+                await SetStatusMessageAsync("Nincs elérhető solution path az elemzéshez.", cancellationToken);
+                return;
+            }
+
+            await SetStatusMessageAsync($"Solution elemzése folyamatban...\n{solutionPath}", cancellationToken);
+
+            var analyzer = new SolutionDependencyAnalyzer();
+            DependencyGraph graph;
+
+            try
+            {
+                graph = await analyzer.AnalyzeSolutionAsync(solutionPath, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                await SetStatusMessageAsync(
+                    "Hiba az AnalyzeSolutionAsync hívásban: " +
+                    ex.GetType().Name + " - " + ex.Message,
+                    cancellationToken);
+
+                return;
+            }
+
+            await RunOnUiAsync(() =>
+            {
+                Data.StatusMessage = $"Elemzés kész. Node-ok: {graph.Nodes.Count}, élek: {graph.Edges.Count}.";
+            }, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            Data.StatusMessage = "Váratlan hiba az AnalyzeSolutionAsync-ben: "
+                                 + ex.GetType().Name + " - " + ex.Message;
+        }
     }
 
     private async Task OnRefreshRequestedAsync(CancellationToken token)
     {
         await SetupSubscriptionsAsync(token);
+    }
+    private async Task OnAnalyzeRequestedAsync(CancellationToken token)
+    {
+        await AnalyzeSolutionAsync(token);
     }
 
     private async Task SetupSubscriptionsAsync(CancellationToken cancellationToken)
