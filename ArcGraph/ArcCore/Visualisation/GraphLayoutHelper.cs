@@ -2,6 +2,9 @@
 //  Alexandra Apró
 //  University of Szeged
 
+using Microsoft.Msagl.Drawing;
+using Microsoft.Msagl.Layout.Layered;
+
 namespace ArcCore.Visualisation
 {
     public static class GraphLayoutHelper
@@ -19,7 +22,7 @@ namespace ArcCore.Visualisation
             public string Target { get; set; } = default!;
         }
 
-        public static void ComputeLayout(IList<Node> nodes, IList<Edge> edges, int width = 800, int height = 600, int iterations = 400)
+        public static void ComputeLayoutObsolate(IList<Node> nodes, IList<Edge> edges, int width = 800, int height = 600, int iterations = 400)
         {
             if (nodes == null || nodes.Count == 0) return;
 
@@ -121,6 +124,101 @@ namespace ArcCore.Visualisation
             double targetH = Math.Max(100, height - 2 * margin);
 
             for (int i = 0; i < n; i++)
+            {
+                nodes[i].X = margin + ((nodes[i].X - minX) / spanX) * targetW;
+                nodes[i].Y = margin + ((nodes[i].Y - minY) / spanY) * targetH;
+            }
+        }
+
+        public static void ComputeLayout(IList<Node> nodes, IList<Edge> edges, int width = 800, int height = 600, int iterations = 400)
+        {
+            if (nodes == null || nodes.Count == 0) return;
+
+            try
+            {
+                ComputeLayoutWithMsagl(nodes, edges, width, height);
+                return;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("[GraphLayoutHelper] MSAGL layout failed, falling back to FR. Error: " + ex);
+            }
+
+            // fallback
+            ComputeLayoutObsolate(nodes, edges, width, height, iterations);
+        }
+
+        private static void ComputeLayoutWithMsagl(IList<Node> nodes, IList<Edge> edges, int width, int height)
+        {
+            var g = new Microsoft.Msagl.Drawing.Graph();
+
+            foreach (var n in nodes)
+            {
+                var dn = g.AddNode(n.Id);
+                dn.Attr.Shape = Shape.Circle;
+                dn.Attr.Id = n.Id;
+                dn.Attr.Padding = 0;
+                dn.Attr.XRadius = 10;
+                dn.Attr.YRadius = 10;
+            }
+
+            foreach (var e in edges)
+            {
+                try
+                {
+                    g.AddEdge(e.Source, e.Target);
+                }
+                catch
+                {
+                }
+            }
+
+            var geometryGraph = g.GeometryGraph;
+            if (geometryGraph == null)
+                throw new InvalidOperationException("MSAGL geometry graph not available.");
+
+            var settings = new SugiyamaLayoutSettings
+            {              
+            };
+
+            var sug = new LayeredLayout(geometryGraph, settings);
+            sug.Run();
+           
+            foreach (var dn in g.Nodes)
+            {
+                var id = dn.Id;
+                var geom = dn.GeometryNode;
+                if (geom == null) continue;
+
+                var center = geom.Center;
+                var node = nodes.FirstOrDefault(x => x.Id == id);
+                if (node != null)
+                {
+                    node.X = center.X;
+                    node.Y = center.Y;
+                }
+            }
+
+            NormalizePositions(nodes, width, height);
+        }
+
+        private static void NormalizePositions(IList<Node> nodes, int width, int height)
+        {
+            if (nodes == null || nodes.Count == 0) return;
+
+            double minX = nodes.Min(nd => nd.X);
+            double maxX = nodes.Max(nd => nd.X);
+            double minY = nodes.Min(nd => nd.Y);
+            double maxY = nodes.Max(nd => nd.Y);
+
+            double spanX = Math.Max(1e-6, maxX - minX);
+            double spanY = Math.Max(1e-6, maxY - minY);
+
+            double margin = 40;
+            double targetW = Math.Max(100, width - 2 * margin);
+            double targetH = Math.Max(100, height - 2 * margin);
+
+            for (int i = 0; i < nodes.Count; i++)
             {
                 nodes[i].X = margin + ((nodes[i].X - minX) / spanX) * targetW;
                 nodes[i].Y = margin + ((nodes[i].Y - minY) / spanY) * targetH;

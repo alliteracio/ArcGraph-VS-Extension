@@ -332,7 +332,8 @@ namespace ArcCore.Visualisation
         }
 
         private static string BuildIndexHtml()
-        {           
+        {
+            // Full interactive index: Cytoscape + SSE (tries SSE, uses preset positions if provided, otherwise falls back to cose)
             return @"
 <!doctype html>
 <html>
@@ -352,6 +353,7 @@ namespace ArcCore.Visualisation
   <script>
     let cy = null;
     let pollHandle = null;
+
     async function fetchGraph() {
       try {
         const r = await fetch('/api/graph', { cache: 'no-store' });
@@ -366,10 +368,20 @@ namespace ArcCore.Visualisation
     }
 
     function updateGraph(data) {
+      // Build cytoscape elements and collect whether positions exist
       const elements = [];
+      let hasPositions = false;
+
       for (const n of (data.nodes || [])) {
-        elements.push({ data: { id: n.id, label: n.label || n.id, group: n.group } });
+        const nodeData = { id: n.id, label: n.label || n.id, group: n.group };
+        const el = { data: nodeData };
+        if (typeof n.x === 'number' && typeof n.y === 'number') {
+          hasPositions = true;
+          el.position = { x: n.x, y: n.y };
+        }
+        elements.push(el);
       }
+
       for (const e of (data.edges || [])) {
         elements.push({ data: { id: (e.source+'-'+e.target), source: e.source, target: e.target, weight: e.weight || 1, isViolation: e.isViolation || false } });
       }
@@ -383,7 +395,7 @@ namespace ArcCore.Visualisation
             { selector: 'edge', style: { 'width': 'mapData(weight, 1, 10, 1, 6)', 'line-color': '#999', 'target-arrow-shape': 'triangle', 'target-arrow-color': '#999' } },
             { selector: 'edge[isViolation = true]', style: { 'line-color': '#d9534f', 'target-arrow-color': '#d9534f' } }
           ],
-          layout: { name: 'cose', animate: true }
+          layout: hasPositions ? { name: 'preset' } : { name: 'cose', animate: true }
         });
 
         cy.on('tap', 'node', (evt) => {
@@ -391,9 +403,28 @@ namespace ArcCore.Visualisation
           alert(`${node.data('label')}\\nGroup: ${node.data('group')}`);
         });
       } else {
-        cy.elements().remove();
-        cy.add(elements);
-        cy.layout({ name: 'cose', animate: true }).run();
+        // If positions available, update with preset positions and don't re-run heavy layout
+        if (hasPositions) {
+          // keep viewport (pan/zoom) stable: apply positions and refresh
+          cy.batch(() => {
+            cy.nodes().forEach(n => {
+              const incoming = elements.find(e => e.data && e.data.id === n.id());
+              if (incoming && incoming.position) {
+                n.position(incoming.position);
+              }
+            });
+            // update edges/nodes data if necessary
+            cy.elements().remove();
+            cy.add(elements);
+          });
+          // ensure preset layout is applied
+          cy.layout({ name: 'preset' }).run();
+        } else {
+          // replace elements and run dynamic layout
+          cy.elements().remove();
+          cy.add(elements);
+          cy.layout({ name: 'cose', animate: true }).run();
+        }
       }
     }
 
@@ -429,7 +460,6 @@ namespace ArcCore.Visualisation
         es.onerror = function(err) {
           console.warn('SSE error, will fallback to polling', err);
           try { es.close(); } catch {}
-          // start polling fallback if not already started
           startPolling(2000);
         };
 
@@ -452,6 +482,6 @@ namespace ArcCore.Visualisation
   </script>
 </body>
 </html>";
-        }    
+        }
     }
 }
