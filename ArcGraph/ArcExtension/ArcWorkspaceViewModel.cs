@@ -4,12 +4,10 @@
 
 using ArcCore.GraphModel;
 using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
 using Microsoft.VisualStudio.Extensibility.UI;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.Runtime.Serialization;
-using System.Threading;
 
 namespace ArcExtension;
 

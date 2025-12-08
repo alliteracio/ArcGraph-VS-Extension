@@ -24,7 +24,7 @@ internal class ArcToolWindow : ToolWindow
     {
         Placement = ToolWindowPlacement.Floating,
         DockDirection = Dock.Right,
-        AllowAutoCreation = true,
+        AllowAutoCreation = false,
     };
 
     public override async Task InitializeAsync(CancellationToken cancellationToken)
