@@ -43,17 +43,17 @@
                 </DataTemplate>
             </ListBox.ItemTemplate>
         </ListBox>
-        
+
         <wv2:WebView2
         Grid.Row="3"
         Name="webView2"
-        Source="https://github.com/microsoft/automatic-graph-layout"
+        Source="{Binding WebViewUri}"
         HorizontalAlignment="Stretch"
         VerticalAlignment="Stretch">
-        <wv2:WebView2.CreationProperties>
-            <wv2:CoreWebView2CreationProperties UserDataFolder="C:\temp\myFolder"/>
-        </wv2:WebView2.CreationProperties>
+            <wv2:WebView2.CreationProperties>
+                <wv2:CoreWebView2CreationProperties UserDataFolder="C:\temp\myFolder"/>
+            </wv2:WebView2.CreationProperties>
         </wv2:WebView2>
-        
+
     </Grid>
 </DataTemplate>

@@ -6,10 +6,12 @@ using ArcCore.Analysis;
 using ArcCore.GraphModel;
 using ArcCore.Layering;
 using ArcCore.Rules;
+using ArcCore.Visualisation;
 using Microsoft.VisualStudio.Extensibility;
 using Microsoft.VisualStudio.ProjectSystem.Query;
-using System.Windows; 
-using System.Windows.Threading; 
+using System.Text.Json;
+using System.Windows;
+using System.Windows.Threading;
 
 namespace ArcExtension;
 
@@ -49,7 +51,7 @@ public sealed class ArcWorkspaceWatcher :
             return;
         }
 
-            await SetStatusMessageAsync($"Solution elemzése folyamatban...\n{solutionPath}", cancellationToken);
+        await SetStatusMessageAsync($"Solution elemzése folyamatban...\n{solutionPath}", cancellationToken);
 
         try
         {
@@ -67,16 +69,16 @@ public sealed class ArcWorkspaceWatcher :
             assigner.AssignLayers(graph);
 
             var allowed = new List<(Layer, Layer)>
-        {
-            (Layer.UI, Layer.Application),
-            (Layer.Application, Layer.Domain),
-            (Layer.Application, Layer.Infrastructure),
-            (Layer.Domain, Layer.Infrastructure),
-            (Layer.UI, Layer.UI),
-            (Layer.Application, Layer.Application),
-            (Layer.Domain, Layer.Domain),
-            (Layer.Infrastructure, Layer.Infrastructure)
-        };
+            {
+                (Layer.UI, Layer.Application),
+                (Layer.Application, Layer.Domain),
+                (Layer.Application, Layer.Infrastructure),
+                (Layer.Domain, Layer.Infrastructure),
+                (Layer.UI, Layer.UI),
+                (Layer.Application, Layer.Application),
+                (Layer.Domain, Layer.Domain),
+                (Layer.Infrastructure, Layer.Infrastructure)
+            };
 
             var rules = new LayerRules(allowed);
             rules.MarkLayerViolations(graph);
@@ -86,6 +88,42 @@ public sealed class ArcWorkspaceWatcher :
             {
                 Data.StatusMessage = $"Elemzés kész. Nodes: {graph.Nodes.Count}, Edges: {graph.Edges.Count}. Violations: {graph.Edges.Count(e => e.IsViolation)}";
             }, cancellationToken);
+
+
+            var nodeList = graph.Nodes.Select(n => new GraphLayoutHelper.Node
+            {
+                Id = n.Value.Id
+            }).ToList();
+
+            var edgeList = graph.Edges.Select(e => new GraphLayoutHelper.Edge
+            {
+                Source = e.SourceId,
+                Target = e.TargetId
+            }).ToList();
+
+            GraphLayoutHelper.ComputeLayout(nodeList, edgeList, width: 1200, height: 800, iterations: 400);
+
+            var dto = new
+            {
+                nodes = nodeList.Select(n => new
+                {
+                    id = n.Id,
+                    label = graph.Nodes.FirstOrDefault(g => g.Value.Id == n.Id) is var gn ? (gn.Value.Name ?? n.Id) : n.Id,
+                    group = graph.Nodes.FirstOrDefault(g => g.Value.Id == n.Id) is var gg ? (gg.Value.Layer.ToString() ?? string.Empty) : string.Empty,
+                    x = Math.Round(n.X, 2),
+                    y = Math.Round(n.Y, 2)
+                }).ToArray(),
+                edges = edgeList.Select(e => new
+                {
+                    source = e.Source,
+                    target = e.Target,
+                    weight = 1
+                }).ToArray()
+            };
+
+            var graphJson = JsonSerializer.Serialize(dto);
+
+            Data.UpdateGraphJson(graphJson);
         }
         catch (Exception ex)
         {
@@ -184,7 +222,7 @@ public sealed class ArcWorkspaceWatcher :
                 }
             }, ct);
         }
-        catch (OperationCanceledException){}
+        catch (OperationCanceledException) { }
         catch (Exception ex)
         {
             await SetStatusMessageAsync($"Hiba a fájlok lekérésekor: {ex.Message}");
@@ -202,7 +240,7 @@ public sealed class ArcWorkspaceWatcher :
 
     public void OnError(Exception error)
     {
-        _ = SetStatusMessageAsync($"Subscription error: {error.Message}");
+        _ = SetStatusMessageAsync($"Feliratkozás error: {error.Message}");
     }
 
     public void OnCompleted()
@@ -225,6 +263,12 @@ public sealed class ArcWorkspaceWatcher :
         _refreshCts = null;
 
         _refreshSemaphore.Dispose();
+
+        try
+        {
+            Data.Dispose();
+        }
+        catch { }
     }
 
     private static async Task RunOnUiAsync(Action action, CancellationToken cancellationToken = default)
@@ -245,7 +289,7 @@ public sealed class ArcWorkspaceWatcher :
                 return;
             }
 
-            var sc = SynchronizationContext.Current;
+            var sc = System.Threading.SynchronizationContext.Current;
             if (sc != null)
             {
                 var tcs = new TaskCompletionSource<object?>();

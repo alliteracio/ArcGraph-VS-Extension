@@ -228,13 +228,13 @@ public class SolutionAnalyzer
             };
         }
 
-        var edge = graph.Edges.FirstOrDefault(e => e.FromNodeId == fromId && e.ToNodeId == toId && e.Kind == kind);
+        var edge = graph.Edges.FirstOrDefault(e => e.SourceId == fromId && e.TargetId == toId && e.Kind == kind);
         if (edge is null)
         {
             edge = new GraphEdge
             {
-                FromNodeId = fromId,
-                ToNodeId = toId,
+                SourceId = fromId,
+                TargetId = toId,
                 Weight = 0,
                 Kind = kind
             };

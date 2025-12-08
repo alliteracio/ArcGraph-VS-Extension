@@ -19,8 +19,8 @@ public class LayerRules
     {
         foreach (var edge in graph.Edges)
         {
-            if (!graph.Nodes.TryGetValue(edge.FromNodeId, out var fromNode) ||
-                !graph.Nodes.TryGetValue(edge.ToNodeId, out var toNode))
+            if (!graph.Nodes.TryGetValue(edge.SourceId, out var fromNode) ||
+                !graph.Nodes.TryGetValue(edge.TargetId, out var toNode))
                 continue;
 
             var from = fromNode.Layer;
@@ -49,15 +49,15 @@ public class LayerRules
 
         foreach (var e in graph.Edges)
         {
-            if (outDegrees.ContainsKey(e.FromNodeId)) outDegrees[e.FromNodeId]++;
-            if (inDegrees.ContainsKey(e.ToNodeId)) inDegrees[e.ToNodeId]++;
+            if (outDegrees.ContainsKey(e.SourceId)) outDegrees[e.SourceId]++;
+            if (inDegrees.ContainsKey(e.TargetId)) inDegrees[e.TargetId]++;
         }
 
         foreach (var kv in inDegrees)
         {
             if (kv.Value >= inDegreeThreshold)
             {
-                foreach (var e in graph.Edges.Where(x => x.ToNodeId == kv.Key))
+                foreach (var e in graph.Edges.Where(x => x.TargetId == kv.Key))
                     e.IsViolation = true;
             }
         }
@@ -66,7 +66,7 @@ public class LayerRules
         {
             if (kv.Value >= outDegreeThreshold)
             {
-                foreach (var e in graph.Edges.Where(x => x.FromNodeId == kv.Key))
+                foreach (var e in graph.Edges.Where(x => x.SourceId == kv.Key))
                     e.IsViolation = true;
             }
         }
