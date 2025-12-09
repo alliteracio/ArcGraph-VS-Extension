@@ -20,9 +20,12 @@ public class SolutionDependencyAnalyzer
         RegisterMSBuildIfNeeded();
 
         using var workspace = MSBuildWorkspace.Create();
-        var solution = await workspace.OpenSolutionAsync(solutionPath);
+        var solution = await workspace.OpenSolutionAsync(solutionPath, cancellationToken: cancellationToken);
+
+        var assemblyPackageMap = NuGetAssemblyMapper.BuildMappingForSolution(solution);
+
         var analyzer = new SolutionAnalyzer(solution);
-        return await analyzer.AnalyzeAsync(cancellationToken);
+        return await analyzer.AnalyzeAsync(progress: null, assemblyPackageMap: assemblyPackageMap, cancellationToken: cancellationToken);
     }
 
     private static void RegisterMSBuildIfNeeded()
