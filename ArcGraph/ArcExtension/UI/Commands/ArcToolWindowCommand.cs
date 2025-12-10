@@ -2,6 +2,7 @@
 //  Alexandra Apró
 //  University of Szeged
 
+using ArcExtension.UI.Views;
 using Microsoft.VisualStudio.Extensibility;
 using Microsoft.VisualStudio.Extensibility.Commands;
 

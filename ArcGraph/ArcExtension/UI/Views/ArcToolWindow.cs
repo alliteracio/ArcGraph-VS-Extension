@@ -3,11 +3,12 @@
 //  University of Szeged
 
 using ArcExtension.UI.Controls;
+using ArcExtension.UI.Services;
 using Microsoft.VisualStudio.Extensibility;
 using Microsoft.VisualStudio.Extensibility.ToolWindows;
 using Microsoft.VisualStudio.RpcContracts.RemoteUI;
 
-namespace ArcExtension.UI;
+namespace ArcExtension.UI.Views;
 
 [VisualStudioContribution]
 internal class ArcToolWindow : ToolWindow

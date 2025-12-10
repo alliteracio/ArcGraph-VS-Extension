@@ -12,7 +12,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Runtime.Serialization;
 
-namespace ArcExtension;
+namespace ArcExtension.UI.ViewModels;
 
 [DataContract]
 public sealed class ArcWorkspaceViewModel : ObservableObject

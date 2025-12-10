@@ -7,6 +7,7 @@ using ArcCore.GraphModel;
 using ArcCore.Layering;
 using ArcCore.Rules;
 using ArcCore.Visualisation;
+using ArcExtension.UI.ViewModels;
 using Microsoft.VisualStudio.Extensibility;
 using Microsoft.VisualStudio.ProjectSystem.Query;
 using System.Diagnostics;
@@ -14,7 +15,7 @@ using System.Text.Json;
 using System.Windows;
 using System.Windows.Threading;
 
-namespace ArcExtension;
+namespace ArcExtension.UI.Services;
 
 [VisualStudioContribution]
 public sealed class ArcWorkspaceWatcher : IObserver<IQueryResults<ISolutionSnapshot>>, IDisposable
