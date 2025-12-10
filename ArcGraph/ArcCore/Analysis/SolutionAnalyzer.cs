@@ -342,6 +342,14 @@ public class SolutionAnalyzer
         }
     }
 
+    private static string NormalizeNamespace(string raw)
+    {
+        if (string.IsNullOrEmpty(raw)) return string.Empty;
+        raw = raw.Replace("global::", "");
+        raw = raw.Replace('+', '.'); 
+        return raw.Trim();
+    }
+
     private static void AddEdge(DependencyGraph graph, string fromId, string toId, DependencyKind kind, Compilation? compilation = null, IDictionary<string, (string PackageId, string PackageVersion)>? assemblyPackageMap = null)
     {
         if (!graph.Nodes.ContainsKey(toId))
@@ -350,16 +358,20 @@ public class SolutionAnalyzer
             {
                 Id = toId,
                 Name = toId.Split('.').Last(),
-                Namespace = string.Join('.', toId.Split('.').Reverse().Skip(1).Reverse())
+                Namespace = string.Empty 
             };
 
+            string ns = string.Empty;
             if (compilation != null)
             {
                 try
                 {
-                    var symbol = compilation.GetTypeByMetadataName(toId.Replace("global::", string.Empty));
+                    var metadataName = toId.Replace("global::", string.Empty);
+                    var symbol = compilation.GetTypeByMetadataName(metadataName);
                     if (symbol != null)
                     {
+                        ns = symbol.ContainingNamespace?.ToDisplayString() ?? string.Empty;
+
                         newNode.AssemblyName = symbol.ContainingAssembly?.Name ?? string.Empty;
                         newNode.IsExternal = !SymbolEqualityComparer.Default.Equals(symbol.ContainingAssembly, compilation.Assembly);
                         newNode.TypeKind = symbol.TypeKind.ToString();
@@ -374,9 +386,18 @@ public class SolutionAnalyzer
                     }
                 }
                 catch
-                {
+                {                   
                 }
             }
+
+            if (string.IsNullOrEmpty(ns))
+            {
+                var cleaned = toId.Replace("global::", "").Replace('+', '.').Trim();
+                var lastDot = cleaned.LastIndexOf('.');
+                ns = lastDot > 0 ? cleaned.Substring(0, lastDot) : string.Empty;
+            }
+
+            newNode.Namespace = NormalizeNamespace(ns);
 
             graph.Nodes[toId] = newNode;
         }

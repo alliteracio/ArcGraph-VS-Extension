@@ -77,11 +77,25 @@ public sealed class ArcWorkspaceWatcher : IObserver<IQueryResults<ISolutionSnaps
             var graph = await analyzer.AnalyzeSolutionAsync(solutionPath, checker, cancellationToken).ConfigureAwait(false);
           
             LayerConfig cfg;
-            var configPath = Path.Combine(Path.GetDirectoryName(solutionPath) ?? "", "layer.config.json");
+
+            var configPath = Path.Combine(Path.GetDirectoryName(solutionPath) ?? "", "ArcCore\\Layering\\layer.config.json");
+            System.Diagnostics.Debug.WriteLine($"[ArcWorkspaceWatcher] solutionPath={solutionPath}");
+            System.Diagnostics.Debug.WriteLine($"[ArcWorkspaceWatcher] looking for layer config at: {configPath}");
+            System.Diagnostics.Debug.WriteLine($"[ArcWorkspaceWatcher] layer config exists: {File.Exists(configPath)}");
+
             if (File.Exists(configPath))
                 cfg = LayerConfigLoader.LoadFromFile(configPath);
             else
                 cfg = new LayerConfig();
+            try
+            {
+                var cfgText = File.Exists(configPath) ? File.ReadAllText(configPath) : "<none>";
+                System.Diagnostics.Debug.WriteLine($"[ArcWorkspaceWatcher] loaded layer.config.json content:\n{cfgText}");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[ArcWorkspaceWatcher] failed to read config content: {ex}");
+            }
 
             var assigner = new LayerAssigner(cfg);
             assigner.AssignLayers(graph);
