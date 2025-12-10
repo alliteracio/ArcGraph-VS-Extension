@@ -19,7 +19,7 @@ public class ArcToolWindowCommand : Command
     public override CommandConfiguration CommandConfiguration => new("ArcGraph")
     {
         Placements = new[] { CommandPlacement.KnownPlacements.ViewOtherWindowsMenu },
-        Icon = new(ImageMoniker.KnownValues.ToolWindow, IconSettings.IconAndText),
+        Icon = new(ImageMoniker.KnownValues.DependancyGraph, IconSettings.IconAndText),
     };
 
     public override async Task ExecuteCommandAsync(IClientContext context, CancellationToken cancellationToken)
