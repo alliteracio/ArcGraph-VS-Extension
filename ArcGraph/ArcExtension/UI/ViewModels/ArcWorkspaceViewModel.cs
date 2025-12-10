@@ -2,8 +2,8 @@
 //  Alexandra Apró
 //  University of Szeged
 
-using ArcCore.Domain.GraphModel;
-using ArcCore.Infrastructure.VisualizationServer;
+using ArcAnalyzer.Domain.GraphModel;
+using ArcAnalyzer.Infrastructure.VisualizationServer;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.VisualStudio.Extensibility.UI;
 using System.Collections.ObjectModel;

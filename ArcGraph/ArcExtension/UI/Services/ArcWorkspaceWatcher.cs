@@ -2,12 +2,12 @@
 //  Alexandra Apró
 //  University of Szeged
 
-using ArcCore.Application.Analyzis;
-using ArcCore.Domain.GraphModel;
-using ArcCore.Domain.Layering;
-using ArcCore.Domain.Rules;
-using ArcCore.Infrastructure.Vulnerabilities;
-using ArcCore.UI;
+using ArcAnalyzer.Application.Analyzis;
+using ArcAnalyzer.Domain.GraphModel;
+using ArcAnalyzer.Domain.Layering;
+using ArcAnalyzer.Domain.Rules;
+using ArcAnalyzer.Infrastructure.Vulnerabilities;
+using ArcAnalyzer.UI;
 using ArcExtension.UI.ViewModels;
 using Microsoft.VisualStudio.Extensibility;
 using Microsoft.VisualStudio.ProjectSystem.Query;
@@ -80,7 +80,7 @@ public sealed class ArcWorkspaceWatcher : IObserver<IQueryResults<ISolutionSnaps
           
             LayerConfig cfg;
 
-            var configPath = Path.Combine(Path.GetDirectoryName(solutionPath) ?? "", "ArcCore\\Domain\\Layering\\layer.config.json");
+            var configPath = Path.Combine(Path.GetDirectoryName(solutionPath) ?? "", "ArcAnalyzer\\Domain\\Layering\\layer.config.json");
             System.Diagnostics.Debug.WriteLine($"[ArcWorkspaceWatcher] solutionPath={solutionPath}");
             System.Diagnostics.Debug.WriteLine($"[ArcWorkspaceWatcher] looking for layer config at: {configPath}");
             System.Diagnostics.Debug.WriteLine($"[ArcWorkspaceWatcher] layer config exists: {File.Exists(configPath)}");
