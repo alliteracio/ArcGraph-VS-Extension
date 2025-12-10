@@ -55,7 +55,7 @@ public sealed class ArcWorkspaceWatcher :
 
         try
         {
-            var analyzer = new SolutionDependencyAnalyzer();          
+            var analyzer = new SolutionDependencyAnalyzer();
             var checker = new MockVulnerabilityChecker();
 
             var graph = await analyzer.AnalyzeSolutionAsync(solutionPath, checker, cancellationToken);
@@ -123,7 +123,15 @@ public sealed class ArcWorkspaceWatcher :
             {
                 nodes = nodeList.Select(n =>
                 {
-                    var gn = graph.Nodes.TryGetValue(n.Id, out var node) ? node : null;
+                    graph.Nodes.TryGetValue(n.Id, out var gn);
+                    var vulns = gn?.Vulnerabilities?.Select(v => new {
+                        id = v.Id,
+                        title = v.Title,
+                        description = v.Description,
+                        severity = v.Severity,
+                        affectedVersions = v.AffectedVersions
+                    }).ToArray() ?? Array.Empty<object>();
+
                     return new
                     {
                         id = n.Id,
@@ -137,7 +145,8 @@ public sealed class ArcWorkspaceWatcher :
                         methodCount = gn?.MethodCount ?? 0,
                         propertyCount = gn?.PropertyCount ?? 0,
                         fieldCount = gn?.FieldCount ?? 0,
-                        sourceFiles = gn?.SourceFilePaths ?? new List<string>()
+                        sourceFiles = gn?.SourceFilePaths ?? new List<string>(),
+                        vulnerabilities = vulns
                     };
                 }).ToArray(),
                 edges = edgeList.Select(e =>
