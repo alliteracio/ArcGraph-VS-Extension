@@ -7,7 +7,6 @@ using ArcAnalyzer.Infrastructure.VisualizationServer;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.VisualStudio.Extensibility.UI;
 using System.Collections.ObjectModel;
-using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Runtime.Serialization;
@@ -17,12 +16,19 @@ namespace ArcExtension.UI.ViewModels;
 [DataContract]
 public sealed class ArcWorkspaceViewModel : ObservableObject
 {
+    private LocalGraphServer? _server;
+    private int _serverPort = -1;
+    private bool _isServerStarted;
+
     [DataMember]
     public ObservableCollection<string> Files { get; } = new();
 
+    [DataMember]
     public ObservableCollection<string> VulnerablePackages { get; } = new();
 
-    private string? _solutionPath;
+    private string? _solutionPath = string.Empty;
+
+    [DataMember]
     public string? SolutionPath
     {
         get => _solutionPath;
@@ -61,11 +67,6 @@ public sealed class ArcWorkspaceViewModel : ObservableObject
         }
     }
 
-    [DataMember]
-    public IAsyncCommand RefreshCommand { get; }
-    [DataMember]
-    public IAsyncCommand AnalyzeCommand { get; }
-
     private DependencyGraph? _dependencyGraph;
     public DependencyGraph? DependencyGraph
     {
@@ -73,41 +74,35 @@ public sealed class ArcWorkspaceViewModel : ObservableObject
         set => SetProperty(ref _dependencyGraph, value);
     }
 
+    [DataMember]
+    public IAsyncCommand RefreshCommand { get; }
+
+    [DataMember]
+    public IAsyncCommand AnalyzeCommand { get; }
+
     public event Func<CancellationToken, Task>? RefreshRequested;
     public event Func<CancellationToken, Task>? AnalyzeRequested;
 
-    private LocalGraphServer? _server;
-    private int _serverPort = -1;
-    private bool _serverStarting;
+    private Task ExecuteRefreshAsync(object? parameter, CancellationToken ct)
+    => RefreshRequested is not null ? RefreshRequested.Invoke(ct) : Task.CompletedTask;
+
+    private Task ExecuteAnalyzeAsync(object? parameter, CancellationToken ct)
+       => AnalyzeRequested?.Invoke(CancellationToken.None) ?? Task.CompletedTask;
+
+    public event PropertyChangedEventHandler PropertyChanged;
 
     public ArcWorkspaceViewModel()
     {
         RefreshCommand = new AsyncCommand(ExecuteRefreshAsync);
         AnalyzeCommand = new AsyncCommand(ExecuteAnalyzeAsync);
+
         _ = EnsureServerStartedAsync();
-        Files.CollectionChanged += OnFilesCollectionChanged;
     }
-
-    private Task ExecuteRefreshAsync(object? parameter, CancellationToken ct)
-        => RefreshRequested is not null ? RefreshRequested.Invoke(ct) : Task.CompletedTask;
-
-    private Task ExecuteAnalyzeAsync(object? parameter, CancellationToken ct)
-       => AnalyzeRequested?.Invoke(CancellationToken.None) ?? Task.CompletedTask;
-
-    private void OnFilesCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
-    {
-        if (Files.Count > 0 && !string.IsNullOrEmpty(StatusMessage))
-        {
-            StatusMessage = string.Empty;
-        }
-    }
-
-    public event PropertyChangedEventHandler PropertyChanged;
 
     private async Task EnsureServerStartedAsync()
     {
-        if (_serverStarting || _server != null) return;
-        _serverStarting = true;
+        if (_isServerStarted || _server != null) return;
+        _isServerStarted = true;
         try
         {
             _server = new LocalGraphServer();
@@ -128,43 +123,37 @@ public sealed class ArcWorkspaceViewModel : ObservableObject
         }
         finally
         {
-            _serverStarting = false;
+            _isServerStarted = false;
             await Task.CompletedTask;
         }
     }
 
-    public void UpdateGraphJson(string graphJson)
+    public async Task UpdateGraphAsync(string graphJson)
     {
         if (_server == null)
         {
-            _ = EnsureServerStartedAsync().ContinueWith(t =>
-            {
-                try
-                {
-                    _server?.SetGraphJson(graphJson);
-                    StatusMessage = $"Graph frissítve. Web: {WebViewUri}";
-                    PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(StatusMessage)));
-                }
-                catch (Exception ex)
-                {
-                    Debug.WriteLine("[ArcWorkspaceViewModel] UpdateGraphJson error: " + ex);
-                }
-            });
-            return;
+            await EnsureServerStartedAsync().ConfigureAwait(false);
         }
 
+        await SetGraphOnServerAsync(graphJson).ConfigureAwait(false);
+    }
+
+    private Task SetGraphOnServerAsync(string graphJson)
+    {
         try
         {
             _server.SetGraphJson(graphJson);
             StatusMessage = $"Graph frissítve. Web: {WebViewUri}";
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(StatusMessage)));
             Debug.WriteLine("[ArcWorkspaceViewModel] Graph JSON updated, length=" + (graphJson?.Length ?? 0));
+            return Task.CompletedTask;
         }
         catch (Exception ex)
         {
             Debug.WriteLine("[ArcWorkspaceViewModel] UpdateGraphJson exception: " + ex);
             StatusMessage = "Hiba a graph frissítésekor: " + ex.Message;
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(StatusMessage)));
+            return Task.CompletedTask;
         }
     }
 

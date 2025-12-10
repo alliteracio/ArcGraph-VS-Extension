@@ -25,7 +25,7 @@ public class SolutionDependencyAnalyzer
 
         var assemblyPackageMap = NuGetAssemblyMapper.BuildMappingForSolution(solution);
 
-        var analyzer = new SolutionAnalyzer(solution);
+        var analyzer = new RoslynSolutionAnalyzer(solution);
         return await analyzer.AnalyzeAsync(progress: null, assemblyPackageMap: assemblyPackageMap, cancellationToken: cancellationToken);
     }
 

@@ -9,11 +9,11 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace ArcAnalyzer.Application.Analyzis;
 
-public class SolutionAnalyzer
+public class RoslynSolutionAnalyzer
 {
     private readonly Solution _solution;
 
-    public SolutionAnalyzer(Solution solution) => _solution = solution ?? throw new ArgumentNullException(nameof(solution));
+    public RoslynSolutionAnalyzer(Solution solution) => _solution = solution ?? throw new ArgumentNullException(nameof(solution));
 
     public async Task<DependencyGraph> AnalyzeAsync(IProgress<AnalysisProgress>? progress = null, IDictionary<string, (string PackageId, string PackageVersion)>? assemblyPackageMap = null, IVulnerabilityChecker? checker = null, CancellationToken cancellationToken = default)
     {
