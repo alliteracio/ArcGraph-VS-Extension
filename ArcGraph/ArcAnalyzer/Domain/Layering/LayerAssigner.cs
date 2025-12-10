@@ -1,4 +1,7 @@
 ﻿//  Diploma Thesis 2025
+//  Alexandra Apró
+//  University of Szeged
+
 using ArcAnalyzer.Domain.GraphModel;
 using System.Text.RegularExpressions;
 

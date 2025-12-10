@@ -10,7 +10,7 @@
     },
     {
       "name": "Domain",
-      "namespacePattern": "(^|\\.)Domain(\\.|$)"
+      "namespacePattern": ".*\\.Domain\\..*"
     },
     {
       "name": "Infrastructure",

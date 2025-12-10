@@ -3,6 +3,7 @@
 //  University of Szeged
 
 using ArcAnalyzer.Domain.GraphModel;
+using ArcAnalyzer.Domain.Results;
 using ArcAnalyzer.Infrastructure.Vulnerabilities;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;

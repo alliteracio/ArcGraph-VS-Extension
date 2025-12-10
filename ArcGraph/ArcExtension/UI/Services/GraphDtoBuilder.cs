@@ -12,8 +12,8 @@ public sealed class GraphDtoBuilder : IGraphDtoBuilder
 {
     public string BuildGraphJson(DependencyGraph graph, HashSet<string>? cycleNodeIds, Dictionary<string, int> clusters)
     {
-        var nodeList = graph.Nodes.Select(kv => new GraphLayoutHelper.Node { Id = kv.Key }).ToList();
-        var edgeList = graph.Edges.Select(e => new GraphLayoutHelper.Edge { Source = e.SourceId, Target = e.TargetId }).ToList();
+        var nodeList = graph.Nodes.Select(kv => new GraphNode { Id = kv.Key }).ToList();
+        var edgeList = graph.Edges.Select(e => new GraphEdge { SourceId = e.SourceId, TargetId = e.TargetId }).ToList();
 
         
         GraphLayoutHelper.ComputeLayout(nodeList, edgeList, width: 1400, height: 1000, iterations: 600);
@@ -51,8 +51,8 @@ public sealed class GraphDtoBuilder : IGraphDtoBuilder
         foreach (var node in nodeList) degree[node.Id] = 0;
         foreach (var edge in edgeList)
         {
-            if (degree.ContainsKey(edge.Source)) degree[edge.Source]++;
-            if (degree.ContainsKey(edge.Target)) degree[edge.Target]++;
+            if (degree.ContainsKey(edge.SourceId)) degree[edge.SourceId]++;
+            if (degree.ContainsKey(edge.TargetId)) degree[edge.TargetId]++;
         }
 
         var dto = new
@@ -96,12 +96,12 @@ public sealed class GraphDtoBuilder : IGraphDtoBuilder
             }).ToArray(),
             edges = edgeList.Select(e =>
             {
-                var ge = graph.Edges.FirstOrDefault(x => x.SourceId == e.Source && x.TargetId == e.Target);
-                var edgeInCycle = cycleLookup.Contains(e.Source) && cycleLookup.Contains(e.Target);
+                var ge = graph.Edges.FirstOrDefault(x => x.SourceId == e.SourceId && x.TargetId == e.TargetId);
+                var edgeInCycle = cycleLookup.Contains(e.SourceId) && cycleLookup.Contains(e.TargetId);
                 return new
                 {
-                    source = e.Source,
-                    target = e.Target,
+                    source = e.SourceId,
+                    target = e.TargetId,
                     weight = ge?.Weight ?? 1,
                     isViolation = ge?.IsViolation ?? false,
                     isInCycle = edgeInCycle,
@@ -113,7 +113,7 @@ public sealed class GraphDtoBuilder : IGraphDtoBuilder
         return JsonSerializer.Serialize(dto);
     }
 
-    private static void SpreadNodes(List<GraphLayoutHelper.Node> nodes, double minDistance = 30.0, int maxIterations = 100)
+    private static void SpreadNodes(List<GraphNode> nodes, double minDistance = 30.0, int maxIterations = 100)
     {
         if (nodes.Count < 2) return;
 

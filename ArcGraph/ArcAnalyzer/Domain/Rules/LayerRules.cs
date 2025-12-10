@@ -2,11 +2,6 @@
 //  Alexandra Apró
 //  University of Szeged
 
-
-//  Diploma Thesis 2025
-//  Alexandra Apró
-//  University of Szeged
-
 using ArcAnalyzer.Domain.GraphModel;
 
 namespace ArcAnalyzer.Domain.Rules;

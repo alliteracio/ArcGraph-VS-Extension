@@ -1,6 +1,10 @@
-﻿using ArcAnalyzer.Domain.GraphModel;
+﻿//  Diploma Thesis 2025
+//  Alexandra Apró
+//  University of Szeged
 
-namespace ArcAnalyzer.Domain
+using ArcAnalyzer.Domain.GraphModel;
+
+namespace ArcAnalyzer.Domain.Results
 {
     public sealed class SolutionAnalysisResult
     {

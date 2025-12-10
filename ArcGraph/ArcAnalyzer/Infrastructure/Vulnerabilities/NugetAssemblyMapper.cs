@@ -6,17 +6,8 @@ using System.Text.Json;
 
 namespace ArcAnalyzer.Infrastructure.Vulnerabilities;
 
-/// <summary>
-/// Builds a mapping from assembly simple name -> (packageId, packageVersion)
-/// by reading project.assets.json files in project obj folders.
-/// </summary>
 public static class NuGetAssemblyMapper
 {
-    /// <summary>
-    /// Builds a mapping for all projects in the solution.
-    /// Key: assembly simple name without .dll extension (e.g. "Newtonsoft.Json")
-    /// Value: (packageId, packageVersion)
-    /// </summary>
     public static Dictionary<string, (string PackageId, string PackageVersion)> BuildMappingForSolution(Microsoft.CodeAnalysis.Solution solution)
     {
         var map = new Dictionary<string, (string, string)>(StringComparer.OrdinalIgnoreCase);

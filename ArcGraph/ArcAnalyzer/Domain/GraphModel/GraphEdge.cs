@@ -2,11 +2,6 @@
 //  Alexandra Apró
 //  University of Szeged
 
-
-//  Diploma Thesis 2025
-//  Alexandra Apró
-//  University of Szeged
-
 namespace ArcAnalyzer.Domain.GraphModel;
 
 public class GraphEdge

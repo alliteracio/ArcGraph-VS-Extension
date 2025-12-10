@@ -1,4 +1,8 @@
-﻿using ArcAnalyzer.Domain;
+﻿//  Diploma Thesis 2025
+//  Alexandra Apró
+//  University of Szeged
+
+using ArcAnalyzer.Domain.Results;
 
 namespace ArcAnalyzer.Application.Analyzis
 {

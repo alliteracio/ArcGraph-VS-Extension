@@ -1,12 +1,13 @@
-﻿using System;
-using System.Linq;
+﻿//  Diploma Thesis 2025
+//  Alexandra Apró
+//  University of Szeged
+
 using System.Text;
 using System.Text.Json;
 using System.Xml;
 
 namespace ArcAnalyzer.UI
 {
-    // Simple exporter: converts the internal JSON DTO (nodes[], edges[]) into DOT, Mermaid or DGML.
     public static class GraphExporter
     {
         public static string ToDot(string graphJson)
@@ -78,7 +79,6 @@ namespace ArcAnalyzer.UI
                 }
             }
 
-            // optional: define class style for violation
             sb.AppendLine("classDef violation stroke:#d9534f,stroke-width:2px;");
             return sb.ToString();
         }
@@ -107,7 +107,7 @@ namespace ArcAnalyzer.UI
                     xw.WriteEndElement();
                 }
             }
-            xw.WriteEndElement(); // Nodes
+            xw.WriteEndElement();
 
             xw.WriteStartElement("Links");
             if (doc.RootElement.TryGetProperty("edges", out var edges))
@@ -124,9 +124,8 @@ namespace ArcAnalyzer.UI
                     xw.WriteEndElement();
                 }
             }
-            xw.WriteEndElement(); // Links
+            xw.WriteEndElement();
 
-            // Optional categories
             xw.WriteStartElement("Categories");
             xw.WriteStartElement("Category");
             xw.WriteAttributeString("Id", "Violation");
@@ -134,7 +133,7 @@ namespace ArcAnalyzer.UI
             xw.WriteEndElement();
             xw.WriteEndElement();
 
-            xw.WriteEndElement(); // DirectedGraph
+            xw.WriteEndElement();
             xw.WriteEndDocument();
             xw.Flush();
             return sb.ToString();
@@ -145,10 +144,8 @@ namespace ArcAnalyzer.UI
             return s?.Replace("\"", "\\\"") ?? "";
         }
 
-        // DOT identifiers: make them safe (but keep original mapping simpler by quoting)
         private static string SafeId(string id)
         {
-            // keep as-is — will be quoted when used
             return id;
         }
     }

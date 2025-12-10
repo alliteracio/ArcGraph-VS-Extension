@@ -2,11 +2,8 @@
 //  Alexandra Apró
 //  University of Szeged
 
-namespace ArcAnalyzer.Application.Analyzis;
+namespace ArcAnalyzer.Domain.Results;
 
-/// <summary>
-/// Simple progress report used during solution analysis.
-/// </summary>
 public sealed class AnalysisProgress
 {
     public int ProjectsProcessed { get; init; }

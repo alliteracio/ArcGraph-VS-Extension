@@ -1,4 +1,8 @@
-﻿using ArcAnalyzer.Domain.GraphModel;
+﻿//  Diploma Thesis 2025
+//  Alexandra Apró
+//  University of Szeged
+
+using ArcAnalyzer.Domain.GraphModel;
 
 namespace ArcAnalyzer.Application.Analyzis;
 

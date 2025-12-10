@@ -27,7 +27,9 @@ public sealed class GraphNode
     public string? PackageVersion { get; set; }
     public bool IsVulnerable { get; set; } = false;
     public List<VulnerabilityInfo> Vulnerabilities { get; set; } = new();
-
+    public float Degree { get; set; }
     public override string ToString() => Id;
     public Layer Layer { get; set; } = Layer.Unknown;
+    public double X { get; set; }
+    public double Y { get; set; }
 }
