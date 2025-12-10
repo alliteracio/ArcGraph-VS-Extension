@@ -9,6 +9,7 @@ using ArcCore.Rules;
 using ArcCore.Visualisation;
 using Microsoft.VisualStudio.Extensibility;
 using Microsoft.VisualStudio.ProjectSystem.Query;
+using System.Diagnostics;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Threading;
@@ -16,8 +17,7 @@ using System.Windows.Threading;
 namespace ArcExtension;
 
 [VisualStudioContribution]
-public sealed class ArcWorkspaceWatcher :
-    IObserver<IQueryResults<ISolutionSnapshot>>, IDisposable
+public sealed class ArcWorkspaceWatcher : IObserver<IQueryResults<ISolutionSnapshot>>, IDisposable
 {
     private readonly VisualStudioExtensibility _extensibility;
     private readonly List<IDisposable> _fileSubscriptions = new();
@@ -33,13 +33,13 @@ public sealed class ArcWorkspaceWatcher :
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {
-        if (_started)
-            return;
-
+        if (_started) return;
         _started = true;
+
         Data.RefreshRequested += OnRefreshRequestedAsync;
         Data.AnalyzeRequested += OnAnalyzeRequestedAsync;
-        await SetupSubscriptionsAsync(cancellationToken);
+
+        await SetupSubscriptionsAsync(cancellationToken).ConfigureAwait(false);
     }
 
     public async Task AnalyzeSolutionAsync(CancellationToken cancellationToken)
@@ -47,22 +47,35 @@ public sealed class ArcWorkspaceWatcher :
         var solutionPath = Data.SolutionPath;
         if (string.IsNullOrWhiteSpace(solutionPath))
         {
-            await SetStatusMessageAsync("Nincs elérhető solution path az elemzéshez.", cancellationToken);
+            await SetStatusMessageAsync("Nincs elérhető solution path az elemzéshez.", cancellationToken).ConfigureAwait(false);
             return;
         }
 
-        await SetStatusMessageAsync($"Solution elemzése folyamatban...\n{solutionPath}", cancellationToken);
+        await SetStatusMessageAsync($"Solution elemzése folyamatban...\n{solutionPath}", cancellationToken).ConfigureAwait(false);
 
         try
         {
             var analyzer = new SolutionDependencyAnalyzer();
 
-            var ossUser = Environment.GetEnvironmentVariable("OSS_INDEX_USER");
-            var ossToken = Environment.GetEnvironmentVariable("OSS_INDEX_TOKEN");
-           
-            using var checker = new OssIndexVulnerabilityChecker(username: ossUser, token: ossToken);
-            var graph = await analyzer.AnalyzeSolutionAsync(solutionPath, checker, cancellationToken);
+            IVulnerabilityChecker? checker = null;
+            try
+            {
+                var ossUser = Environment.GetEnvironmentVariable("OSS_INDEX_USER");
+                var ossToken = Environment.GetEnvironmentVariable("OSS_INDEX_TOKEN");
+                if (!string.IsNullOrEmpty(ossUser) && !string.IsNullOrEmpty(ossToken))
+                {
+                    checker = new OssIndexVulnerabilityChecker(ossUser, ossToken);
+                }
+            }
+            catch
+            {
+                checker = null;
+            }
 
+            checker ??= new MockVulnerabilityChecker();
+
+            var graph = await analyzer.AnalyzeSolutionAsync(solutionPath, checker, cancellationToken).ConfigureAwait(false);
+          
             LayerConfig cfg;
             var configPath = Path.Combine(Path.GetDirectoryName(solutionPath) ?? "", "layer.config.json");
             if (File.Exists(configPath))
@@ -89,11 +102,7 @@ public sealed class ArcWorkspaceWatcher :
             rules.MarkLayerViolations(graph);
             rules.MarkHighDegreeNodes(graph, inDegreeThreshold: 40, outDegreeThreshold: 40);
 
-            await RunOnUiAsync(() =>
-            {
-                Data.DependencyGraph = graph;
-                Data.StatusMessage = $"Elemzés kész. Nodes: {graph.Nodes.Count}, Edges: {graph.Edges.Count}. Violations: {graph.Edges.Count(e => e.IsViolation)}";
-            }, cancellationToken);
+            var cycleNodeIds = CycleDetector.FindCycleNodeIds(graph);
 
             var vulnerablePackages = graph.Nodes.Values
                 .Where(n => !string.IsNullOrEmpty(n.PackageId) && n.IsVulnerable)
@@ -104,21 +113,16 @@ public sealed class ArcWorkspaceWatcher :
 
             await RunOnUiAsync(() =>
             {
+                Data.DependencyGraph = graph;
                 Data.VulnerablePackages.Clear();
                 foreach (var vp in vulnerablePackages)
                     Data.VulnerablePackages.Add(vp);
-            }, cancellationToken);
 
-            var nodeList = graph.Nodes.Select(n => new GraphLayoutHelper.Node
-            {
-                Id = n.Value.Id
-            }).ToList();
+                Data.StatusMessage = $"Elemzés kész. Nodes: {graph.Nodes.Count}, Edges: {graph.Edges.Count}. Violations: {graph.Edges.Count(e => e.IsViolation)}";
+            }, cancellationToken).ConfigureAwait(false);
 
-            var edgeList = graph.Edges.Select(e => new GraphLayoutHelper.Edge
-            {
-                Source = e.SourceId,
-                Target = e.TargetId
-            }).ToList();
+            var nodeList = graph.Nodes.Select(kv => new GraphLayoutHelper.Node { Id = kv.Key }).ToList();
+            var edgeList = graph.Edges.Select(e => new GraphLayoutHelper.Edge { Source = e.SourceId, Target = e.TargetId }).ToList();
 
             GraphLayoutHelper.ComputeLayout(nodeList, edgeList, width: 1200, height: 800, iterations: 400);
 
@@ -130,12 +134,67 @@ public sealed class ArcWorkspaceWatcher :
                 if (degree.ContainsKey(e.Target)) degree[e.Target]++;
             }
 
+            var nodeVectors = nodeList.Select(n =>
+            {
+                graph.Nodes.TryGetValue(n.Id, out var gn);
+                return new Clusterer.NodeVector
+                {
+                    Id = n.Id,
+                    Name = gn?.Name ?? (n.Id.Contains('.') ? n.Id.Split('.').Last() : n.Id),
+                    Namespace = gn?.Namespace ?? string.Empty,
+                    MethodCount = gn?.MethodCount ?? 0,
+                    PropertyCount = gn?.PropertyCount ?? 0,
+                    FieldCount = gn?.FieldCount ?? 0,
+                    Degree = degree.TryGetValue(n.Id, out var d) ? d : 0,
+                    IsExternal = (gn?.IsExternal ?? false) ? 1f : 0f
+                };
+            }).ToList();
+
+            int recommendedK = Math.Max(2, Math.Min(12, (int)Math.Ceiling(Math.Sqrt(Math.Max(1, nodeVectors.Count)))));
+            Dictionary<string, int> clusters = new();
+            try
+            {
+                clusters = Clusterer.AssignClusters(nodeVectors, kClusters: recommendedK);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine("[ArcWorkspaceWatcher] Clustering failed: " + ex);
+                clusters = new Dictionary<string, int>(StringComparer.Ordinal);
+            }
+
+            var palette = new[]
+            {
+                "#8dd3c7","#ffffb3","#bebada","#fb8072","#80b1d3","#fdb462","#b3de69","#fccde5",
+                "#d9d9d9","#bc80bd","#ccebc5","#ffed6f"
+            };
+
+            string clusterColor(int c)
+            {
+                if (c <= 0) return colorForGroupString("");
+                return palette[(c - 1) % palette.Length];
+            }
+
+            string colorForGroupString(string g)
+            {
+                switch ((g ?? "").ToLowerInvariant())
+                {
+                    case "ui": return "#1f77b4";
+                    case "application": return "#2ca02c";
+                    case "domain": return "#ff7f0e";
+                    case "infrastructure": return "#9467bd";
+                    default: return "#67a9cf";
+                }
+            }
+
+            var cycleLookup = cycleNodeIds ?? new HashSet<string>(StringComparer.Ordinal);
+
             var dto = new
             {
                 nodes = nodeList.Select(n =>
                 {
                     graph.Nodes.TryGetValue(n.Id, out var gn);
-                    var vulns = gn?.Vulnerabilities?.Select(v => new {
+                    var vulns = gn?.Vulnerabilities?.Select(v => new
+                    {
                         id = v.Id,
                         title = v.Title,
                         description = v.Description,
@@ -143,15 +202,21 @@ public sealed class ArcWorkspaceWatcher :
                         affectedVersions = v.AffectedVersions
                     }).ToArray() ?? Array.Empty<object>();
 
+                    var clusterId = clusters.TryGetValue(n.Id, out var c) ? c : 0;
+                    var bgColor = clusterId > 0 ? clusterColor(clusterId) : colorForGroupString(gn?.Layer.ToString());
+
                     return new
                     {
                         id = n.Id,
                         label = gn?.Name ?? n.Id,
                         group = gn != null ? gn.Layer.ToString() : string.Empty,
+                        cluster = clusterId,
+                        backgroundColor = bgColor,
                         x = Math.Round(n.X, 2),
                         y = Math.Round(n.Y, 2),
                         isVulnerable = gn?.IsVulnerable ?? false,
-                        isExternal = gn?.IsExternal ?? false,              // <-- NEW: external vs solution-local
+                        isExternal = gn?.IsExternal ?? false,
+                        isInCycle = cycleLookup.Contains(n.Id),
                         packageId = gn?.PackageId ?? string.Empty,
                         packageVersion = gn?.PackageVersion ?? string.Empty,
                         methodCount = gn?.MethodCount ?? 0,
@@ -159,18 +224,20 @@ public sealed class ArcWorkspaceWatcher :
                         fieldCount = gn?.FieldCount ?? 0,
                         sourceFiles = gn?.SourceFilePaths ?? new List<string>(),
                         vulnerabilities = vulns,
-                        degree = degree.TryGetValue(n.Id, out var d) ? d : 0  // <-- NEW: degree for sizing
+                        degree = degree.TryGetValue(n.Id, out var d) ? d : 0
                     };
                 }).ToArray(),
                 edges = edgeList.Select(e =>
                 {
                     var ge = graph.Edges.FirstOrDefault(x => x.SourceId == e.Source && x.TargetId == e.Target);
+                    var edgeInCycle = cycleLookup.Contains(e.Source) && cycleLookup.Contains(e.Target);
                     return new
                     {
                         source = e.Source,
                         target = e.Target,
                         weight = ge?.Weight ?? 1,
                         isViolation = ge?.IsViolation ?? false,
+                        isInCycle = edgeInCycle,
                         kind = ge?.Kind.ToString() ?? string.Empty
                     };
                 }).ToArray()
@@ -180,28 +247,29 @@ public sealed class ArcWorkspaceWatcher :
 
             Data.UpdateGraphJson(graphJson);
         }
+        catch (OperationCanceledException) { }
         catch (Exception ex)
         {
-            await SetStatusMessageAsync($"Elemzési hiba: {ex.GetType().Name}: {ex.Message}", cancellationToken);
+            await SetStatusMessageAsync($"Elemzési hiba: {ex.GetType().Name}: {ex.Message}").ConfigureAwait(false);
         }
     }
 
     private async Task OnRefreshRequestedAsync(CancellationToken token)
     {
-        await SetupSubscriptionsAsync(token);
+        await SetupSubscriptionsAsync(token).ConfigureAwait(false);
     }
+
     private async Task OnAnalyzeRequestedAsync(CancellationToken token)
     {
-        await AnalyzeSolutionAsync(token);
+        await AnalyzeSolutionAsync(token).ConfigureAwait(false);
     }
 
     private async Task SetupSubscriptionsAsync(CancellationToken cancellationToken)
     {
-        await SetStatusMessageAsync("Megnyitott solution keresése...", cancellationToken);
+        await SetStatusMessageAsync("Megnyitott solution keresése...", cancellationToken).ConfigureAwait(false);
 
         var solutions = await _extensibility.Workspaces()
-            .QuerySolutionAsync(solution => solution
-            .With(solution => solution.Path), cancellationToken);
+            .QuerySolutionAsync(s => s.With(s => s.Path), cancellationToken).ConfigureAwait(false);
 
         var singleSolution = solutions.FirstOrDefault();
 
@@ -212,7 +280,7 @@ public sealed class ArcWorkspaceWatcher :
                 Data.Files.Clear();
                 Data.SolutionPath = null;
                 Data.StatusMessage = "Nincs megnyitott solution. Nyiss meg egy solutiont, majd kattints a Refresh gombra.";
-            }, cancellationToken);
+            }, cancellationToken).ConfigureAwait(false);
 
             return;
         }
@@ -220,16 +288,16 @@ public sealed class ArcWorkspaceWatcher :
         await RunOnUiAsync(() =>
         {
             Data.SolutionPath = singleSolution.Path;
-        }, cancellationToken);
+        }, cancellationToken).ConfigureAwait(false);
 
         _solutionSubscription?.Dispose();
 
         _solutionSubscription = await singleSolution
             .AsQueryable()
             .With(p => p.Projects)
-            .SubscribeAsync(this, cancellationToken);
+            .SubscribeAsync(this, cancellationToken).ConfigureAwait(false);
 
-        await RefreshFilesAsync(cancellationToken);
+        await RefreshFilesAsync(cancellationToken).ConfigureAwait(false);
     }
 
     private async Task RefreshFilesAsync(CancellationToken cancellationToken)
@@ -239,10 +307,10 @@ public sealed class ArcWorkspaceWatcher :
         _refreshCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var ct = _refreshCts.Token;
 
-        await _refreshSemaphore.WaitAsync(ct);
+        await _refreshSemaphore.WaitAsync(ct).ConfigureAwait(false);
         try
         {
-            await SetStatusMessageAsync("Fájlok lekérése...", ct);
+            await SetStatusMessageAsync("Fájlok lekérése...", ct).ConfigureAwait(false);
 
             var workspace = _extensibility.Workspaces();
 
@@ -250,7 +318,7 @@ public sealed class ArcWorkspaceWatcher :
                 project => project
                     .Get(p => p.FilesEndingWith(".cs")
                         .With(f => f.Path)),
-                ct);
+                ct).ConfigureAwait(false);
 
             var filePaths = files
                 .Where(f => !string.IsNullOrEmpty(f.Path))
@@ -262,25 +330,15 @@ public sealed class ArcWorkspaceWatcher :
             await RunOnUiAsync(() =>
             {
                 Data.Files.Clear();
-                foreach (var path in filePaths)
-                {
-                    Data.Files.Add(path);
-                }
+                foreach (var path in filePaths) Data.Files.Add(path);
 
-                if (filePaths.Count == 0)
-                {
-                    Data.StatusMessage = "Nincsenek .cs fájlok a megnyitott projektekben.";
-                }
-                else
-                {
-                    Data.StatusMessage = string.Empty;
-                }
-            }, ct);
+                Data.StatusMessage = filePaths.Count == 0 ? "Nincsenek .cs fájlok a megnyitott projektekben." : string.Empty;
+            }, ct).ConfigureAwait(false);
         }
         catch (OperationCanceledException) { }
         catch (Exception ex)
         {
-            await SetStatusMessageAsync($"Hiba a fájlok lekérésekor: {ex.Message}");
+            await SetStatusMessageAsync($"Hiba a fájlok lekérésekor: {ex.Message}").ConfigureAwait(false);
         }
         finally
         {
@@ -305,9 +363,7 @@ public sealed class ArcWorkspaceWatcher :
 
     public void Dispose()
     {
-        foreach (var sub in _fileSubscriptions)
-            sub.Dispose();
-
+        foreach (var sub in _fileSubscriptions) sub.Dispose();
         _fileSubscriptions.Clear();
 
         _solutionSubscription?.Dispose();
@@ -319,11 +375,7 @@ public sealed class ArcWorkspaceWatcher :
 
         _refreshSemaphore.Dispose();
 
-        try
-        {
-            Data.Dispose();
-        }
-        catch { }
+        try { Data.Dispose(); } catch { }
     }
 
     private static async Task RunOnUiAsync(Action action, CancellationToken cancellationToken = default)
@@ -340,7 +392,7 @@ public sealed class ArcWorkspaceWatcher :
                 }
 
                 var op = app.Dispatcher.InvokeAsync(action, DispatcherPriority.Normal, cancellationToken);
-                await op.Task;
+                await op.Task.ConfigureAwait(false);
                 return;
             }
 
@@ -350,20 +402,13 @@ public sealed class ArcWorkspaceWatcher :
                 var tcs = new TaskCompletionSource<object?>();
                 sc.Post(_ =>
                 {
-                    try
-                    {
-                        action();
-                        tcs.SetResult(null);
-                    }
-                    catch (Exception ex)
-                    {
-                        tcs.SetException(ex);
-                    }
+                    try { action(); tcs.SetResult(null); }
+                    catch (Exception ex) { tcs.SetException(ex); }
                 }, null);
 
                 using (cancellationToken.Register(() => tcs.TrySetCanceled()))
                 {
-                    await tcs.Task;
+                    await tcs.Task.ConfigureAwait(false);
                 }
 
                 return;
@@ -376,9 +421,6 @@ public sealed class ArcWorkspaceWatcher :
 
     private async Task SetStatusMessageAsync(string message, CancellationToken cancellationToken = default)
     {
-        await RunOnUiAsync(() =>
-        {
-            Data.StatusMessage = message;
-        }, cancellationToken);
+        await RunOnUiAsync(() => Data.StatusMessage = message, cancellationToken).ConfigureAwait(false);
     }
 }
