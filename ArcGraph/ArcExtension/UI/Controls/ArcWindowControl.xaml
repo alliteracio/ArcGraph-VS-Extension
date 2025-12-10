@@ -26,31 +26,9 @@
 
                 <Button Content="Analyze"
                         Width="80"
+                        Margin="0,0,8,0"
                         Command="{Binding AnalyzeCommand}" />
             </StackPanel>
-
-            <WrapPanel VerticalAlignment="Center" Margin="0,8,0,0">
-                <StackPanel Orientation="Horizontal" Margin="4" VerticalAlignment="Center">
-                    <Rectangle Width="16" Height="16" Fill="#1f77b4" Stroke="Black" StrokeThickness="0.5" Margin="0,0,4,0"/>
-                    <TextBlock VerticalAlignment="Center" Text="UI" Margin="0,0,8,0"/>
-                </StackPanel>
-                <StackPanel Orientation="Horizontal" Margin="4" VerticalAlignment="Center">
-                    <Rectangle Width="16" Height="16" Fill="#2ca02c" Stroke="Black" StrokeThickness="0.5" Margin="0,0,4,0"/>
-                    <TextBlock VerticalAlignment="Center" Text="Application" Margin="0,0,8,0"/>
-                </StackPanel>
-                <StackPanel Orientation="Horizontal" Margin="4" VerticalAlignment="Center">
-                    <Rectangle Width="16" Height="16" Fill="#ff7f0e" Stroke="Black" StrokeThickness="0.5" Margin="0,0,4,0"/>
-                    <TextBlock VerticalAlignment="Center" Text="Domain" Margin="0,0,8,0"/>
-                </StackPanel>
-                <StackPanel Orientation="Horizontal" Margin="4" VerticalAlignment="Center">
-                    <Rectangle Width="16" Height="16" Fill="#9467bd" Stroke="Black" StrokeThickness="0.5" Margin="0,0,4,0"/>
-                    <TextBlock VerticalAlignment="Center" Text="Infrastructure" Margin="0,0,8,0"/>
-                </StackPanel>
-                <StackPanel Orientation="Horizontal" Margin="4" VerticalAlignment="Center">
-                    <Ellipse Width="12" Height="12" Fill="#d9534f" Stroke="Black" StrokeThickness="0.5" Margin="0,0,4,0"/>
-                    <TextBlock VerticalAlignment="Center" Text="Vulnerable package" Margin="0,0,8,0"/>
-                </StackPanel>
-            </WrapPanel>
         </StackPanel>
 
         <TextBlock Grid.Row="1"
