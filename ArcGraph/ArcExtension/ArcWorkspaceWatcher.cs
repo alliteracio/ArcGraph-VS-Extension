@@ -56,8 +56,11 @@ public sealed class ArcWorkspaceWatcher :
         try
         {
             var analyzer = new SolutionDependencyAnalyzer();
-            var checker = new MockVulnerabilityChecker();
+            
+            var ossUser = Environment.GetEnvironmentVariable("OSS_INDEX_USER");
+            var ossToken = Environment.GetEnvironmentVariable("OSS_INDEX_TOKEN");
 
+            using var checker = new OssIndexVulnerabilityChecker(username: ossUser, token: ossToken);
             var graph = await analyzer.AnalyzeSolutionAsync(solutionPath, checker, cancellationToken);
 
             LayerConfig cfg;
