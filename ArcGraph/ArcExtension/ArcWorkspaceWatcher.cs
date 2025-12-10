@@ -56,10 +56,10 @@ public sealed class ArcWorkspaceWatcher :
         try
         {
             var analyzer = new SolutionDependencyAnalyzer();
-            
+
             var ossUser = Environment.GetEnvironmentVariable("OSS_INDEX_USER");
             var ossToken = Environment.GetEnvironmentVariable("OSS_INDEX_TOKEN");
-
+           
             using var checker = new OssIndexVulnerabilityChecker(username: ossUser, token: ossToken);
             var graph = await analyzer.AnalyzeSolutionAsync(solutionPath, checker, cancellationToken);
 
@@ -122,6 +122,14 @@ public sealed class ArcWorkspaceWatcher :
 
             GraphLayoutHelper.ComputeLayout(nodeList, edgeList, width: 1200, height: 800, iterations: 400);
 
+            var degree = new Dictionary<string, int>(StringComparer.Ordinal);
+            foreach (var n in nodeList) degree[n.Id] = 0;
+            foreach (var e in edgeList)
+            {
+                if (degree.ContainsKey(e.Source)) degree[e.Source]++;
+                if (degree.ContainsKey(e.Target)) degree[e.Target]++;
+            }
+
             var dto = new
             {
                 nodes = nodeList.Select(n =>
@@ -143,13 +151,15 @@ public sealed class ArcWorkspaceWatcher :
                         x = Math.Round(n.X, 2),
                         y = Math.Round(n.Y, 2),
                         isVulnerable = gn?.IsVulnerable ?? false,
+                        isExternal = gn?.IsExternal ?? false,              // <-- NEW: external vs solution-local
                         packageId = gn?.PackageId ?? string.Empty,
                         packageVersion = gn?.PackageVersion ?? string.Empty,
                         methodCount = gn?.MethodCount ?? 0,
                         propertyCount = gn?.PropertyCount ?? 0,
                         fieldCount = gn?.FieldCount ?? 0,
                         sourceFiles = gn?.SourceFilePaths ?? new List<string>(),
-                        vulnerabilities = vulns
+                        vulnerabilities = vulns,
+                        degree = degree.TryGetValue(n.Id, out var d) ? d : 0  // <-- NEW: degree for sizing
                     };
                 }).ToArray(),
                 edges = edgeList.Select(e =>

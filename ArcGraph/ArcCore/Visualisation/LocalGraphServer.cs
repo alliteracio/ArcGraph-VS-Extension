@@ -332,7 +332,7 @@ namespace ArcCore.Visualisation
         }
 
         private static string BuildIndexHtml()
-        {       
+        {
             return @"
 <!doctype html>
 <html>
@@ -418,8 +418,33 @@ namespace ArcCore.Visualisation
       let hasPositions = false;
 
       for (const n of (data.nodes || [])) {
-        const nodeData = { id: n.id, label: n.label || n.id, group: n.group || '', isVulnerable: !!n.isVulnerable, packageId: n.packageId||'', packageVersion:n.packageVersion||'', methodCount:n.methodCount||0, propertyCount:n.propertyCount||0, fieldCount:n.fieldCount||0, sourceFiles:n.sourceFiles||[] };
-        const el = { data: nodeData };
+        // prepare node data + classes for styling
+        const nodeData = {
+          id: n.id,
+          label: n.label || n.id,
+          group: n.group || '',
+          isVulnerable: !!n.isVulnerable,
+          isExternal: !!n.isExternal,
+          packageId: n.packageId || '',
+          packageVersion: n.packageVersion || '',
+          methodCount: n.methodCount || 0,
+          propertyCount: n.propertyCount || 0,
+          fieldCount: n.fieldCount || 0,
+          sourceFiles: n.sourceFiles || [],
+          vulnerabilities: n.vulnerabilities || [],
+          degree: n.degree || 0
+        };
+
+        const classes = [];
+        // class for layer for consistent styling
+        if (nodeData.group) classes.push('layer-' + nodeData.group.toLowerCase());
+        // external vs internal
+        classes.push(nodeData.isExternal ? 'external' : 'internal');
+        // vulnerability marker as class so it only applies when set
+        if (nodeData.isVulnerable) classes.push('vuln');
+
+        const el = { data: nodeData, classes: classes.join(' ') };
+
         if (typeof n.x === 'number' && typeof n.y === 'number') {
           hasPositions = true;
           el.position = { x: n.x, y: n.y };
@@ -428,7 +453,7 @@ namespace ArcCore.Visualisation
       }
 
       for (const e of (data.edges || [])) {
-        elements.push({ data: { id: (e.source+'-'+e.target), source: e.source, target: e.target, weight: e.weight || 1, isViolation: !!e.isViolation, kind: e.kind || '' } });
+        elements.push({ data: { id: (e.source + '-' + e.target), source: e.source, target: e.target, weight: e.weight || 1, isViolation: !!e.isViolation, kind: e.kind || '' } });
       }
 
       if (!cy) {
@@ -436,18 +461,39 @@ namespace ArcCore.Visualisation
           container: document.getElementById('cy'),
           elements: elements,
           style: [
-            { selector: 'node', style: { 'label': 'data(label)', 'text-valign':'center', 'text-halign':'center', 'background-color': '#67a9cf', 'width': 'mapData(methodCount, 0, 50, 24, 48)', 'height': 'mapData(methodCount, 0, 50, 24, 48)', 'border-width': 2, 'border-color':'#fff' } },
-            // group-specific colors (use unquoted identifiers in selectors to avoid needing escaped quotes)
-            { selector: 'node[group = UI]', style: { 'background-color': '#1f77b4' } },
-            { selector: 'node[group = Application]', style: { 'background-color': '#2ca02c' } },
-            { selector: 'node[group = Domain]', style: { 'background-color': '#ff7f0e' } },
-            { selector: 'node[group = Infrastructure]', style: { 'background-color': '#9467bd' } },
-            // vulnerable marker: red border
-            { selector: 'node[isVulnerable = true]', style: { 'border-color': '#d9534f', 'border-width': 6 } },
-            { selector: 'edge', style: { 'width': 'mapData(weight, 1, 10, 1, 6)', 'line-color': '#999', 'target-arrow-shape': 'triangle', 'target-arrow-color': '#999' } },
+            // base node style: size by degree (clamped)
+            { selector: 'node', style: {
+                'label': 'data(label)',
+                'text-valign':'center',
+                'text-halign':'center',
+                'background-color': '#67a9cf',
+                'width': 'mapData(degree, 0, 50, 24, 80)',
+                'height': 'mapData(degree, 0, 50, 24, 80)',
+                'border-width': 3,
+                'border-color':'#ffffff',
+                'font-size': 10,
+                'text-wrap': 'wrap',
+                'text-max-width': 80
+              } },
+            // layer colors via classes
+            { selector: 'node.layer-ui', style: { 'background-color': '#1f77b4' } },
+            { selector: 'node.layer-application', style: { 'background-color': '#2ca02c' } },
+            { selector: 'node.layer-domain', style: { 'background-color': '#ff7f0e' } },
+            { selector: 'node.layer-infrastructure', style: { 'background-color': '#9467bd' } },
+
+            // external vs internal styling
+            { selector: 'node.external', style: { 'border-style': 'dashed', 'border-color': '#333', 'opacity': 0.95 } },
+            { selector: 'node.internal', style: { 'border-style': 'solid' } },
+
+            // vulnerable marker: only nodes with class 'vuln' get this extra thick red border
+            { selector: 'node.vuln', style: { 'border-color': '#d9534f', 'border-width': 8 } },
+
+            // edges
+            { selector: 'edge', style: { 'width': 'mapData(weight, 1, 10, 1, 6)', 'line-color': '#999', 'target-arrow-shape': 'triangle', 'target-arrow-color': '#999', 'curve-style': 'bezier' } },
             { selector: 'edge[isViolation = true]', style: { 'line-color': '#d9534f', 'target-arrow-color': '#d9534f', 'width': 3 } }
           ],
-          layout: hasPositions ? { name: 'preset' } : { name: 'cose', animate: true }
+          layout: hasPositions ? { name: 'preset' } : { name: 'cose', animate: true },
+          wheelSensitivity: 0.2
         });
 
         cy.on('tap', 'node', (evt) => {
@@ -455,9 +501,7 @@ namespace ArcCore.Visualisation
           showNodeDetails(node.data());
         });
       } else {
-        // update in a minimal disruptive way
-        const existingIds = new Set(cy.nodes().map(n => n.id()));
-        // remove stale
+        // replace elements and run layout/update efficiently
         cy.batch(() => {
           cy.elements().remove();
           cy.add(elements);
@@ -475,6 +519,7 @@ namespace ArcCore.Visualisation
       document.getElementById('nd-label').innerText = d.label || d.id;
       const meta = [];
       if (d.group) meta.push('Layer: ' + d.group);
+      meta.push('Degree: ' + (d.degree || 0));
       meta.push('Methods: ' + (d.methodCount||0) + ', Props: ' + (d.propertyCount||0) + ', Fields: ' + (d.fieldCount||0));
       document.getElementById('nd-meta').innerText = meta.join(' | ');
 
@@ -485,9 +530,9 @@ namespace ArcCore.Visualisation
       }
 
       if (d.packageId) {
-        document.getElementById('nd-package').innerHTML = 'Package: <b>' + d.packageId + '</b> ' + (d.packageVersion ? ('v' + d.packageVersion) : '');
+        document.getElementById('nd-package').innerHTML = `Package: <b>${d.packageId}</b> ${d.packageVersion ? ('v' + d.packageVersion) : ''} ${d.isExternal ? '(external)' : '(solution)'}`;
       } else {
-        document.getElementById('nd-package').innerText = '';
+        document.getElementById('nd-package').innerText = d.isExternal ? '(external assembly)' : '';
       }
 
       const vulnsContainer = document.getElementById('nd-vulns');
@@ -496,7 +541,7 @@ namespace ArcCore.Visualisation
         for (const v of d.vulnerabilities) {
           const div = document.createElement('div');
           div.className = 'vuln-item';
-          div.innerHTML = '<b>' + (v.id||'') + '</b> ' + (v.title||'') + ' <span style=""color:#a00"">(' + (v.severity||'') + ')</span><div style=""font-size:12px"">' + (v.description||'') + '</div>';
+          div.innerHTML = `<b>${v.id || ''}</b> ${v.title || ''} <span style='color:#a00'>(${v.severity || ''})</span><div style='font-size:12px'>${v.description || ''}</div>`;
           vulnsContainer.appendChild(div);
         }
       } else if (d.isVulnerable) {
@@ -551,7 +596,6 @@ namespace ArcCore.Visualisation
         startPolling(2000);
       }
     }
-
     fetchGraph();
     setupSse();
   </script>
