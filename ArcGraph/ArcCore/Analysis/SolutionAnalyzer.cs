@@ -14,7 +14,7 @@ public class SolutionAnalyzer
 
     public SolutionAnalyzer(Solution solution) => _solution = solution ?? throw new ArgumentNullException(nameof(solution));
 
-    public async Task<DependencyGraph> AnalyzeAsync(IProgress<AnalysisProgress>? progress = null, IDictionary<string, (string PackageId, string PackageVersion)>? assemblyPackageMap = null, CancellationToken cancellationToken = default)
+    public async Task<DependencyGraph> AnalyzeAsync(IProgress<AnalysisProgress>? progress = null, IDictionary<string, (string PackageId, string PackageVersion)>? assemblyPackageMap = null, IVulnerabilityChecker? checker = null, CancellationToken cancellationToken = default)
     {
         var graph = new DependencyGraph();
 
@@ -52,6 +52,43 @@ public class SolutionAnalyzer
                 NodesFound = graph.Nodes.Count,
                 EdgesFound = graph.Edges.Count
             });
+        }
+
+        if (checker != null)
+        {
+            var nodesWithPackages = graph.Nodes.Values
+                .Where(n => !string.IsNullOrEmpty(n.PackageId))
+                .ToList();
+
+            const int maxParallel = 6;
+            using var sem = new SemaphoreSlim(maxParallel, maxParallel);
+            var tasks = nodesWithPackages.Select(async node =>
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                await sem.WaitAsync(cancellationToken).ConfigureAwait(false);
+                try
+                {
+                    var pkgId = node.PackageId!;
+                    var pkgVer = node.PackageVersion ?? string.Empty;
+                    var vulns = await checker.CheckPackageAsync(pkgId, pkgVer, cancellationToken).ConfigureAwait(false);
+                    if (vulns != null && vulns.Count > 0)
+                    {
+                        node.IsVulnerable = true;
+                        node.Vulnerabilities = vulns.ToList();
+                    }
+                }
+                catch (OperationCanceledException) {  }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine("[SolutionAnalyzer] Vulnerability check failed for node " + node.Id + ": " + ex);
+                }
+                finally
+                {
+                    sem.Release();
+                }
+            });
+
+            await Task.WhenAll(tasks).ConfigureAwait(false);
         }
 
         return graph;

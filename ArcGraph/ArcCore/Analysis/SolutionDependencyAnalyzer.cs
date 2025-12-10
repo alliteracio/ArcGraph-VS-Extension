@@ -12,7 +12,7 @@ public class SolutionDependencyAnalyzer
 {
     private static bool _msbuildRegistered;
 
-    public async Task<DependencyGraph> AnalyzeSolutionAsync(string solutionPath, CancellationToken cancellationToken = default)
+    public async Task<DependencyGraph> AnalyzeSolutionAsync(string solutionPath, IVulnerabilityChecker? checker = null, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(solutionPath))
             throw new ArgumentException("solutionPath is null or empty.", nameof(solutionPath));

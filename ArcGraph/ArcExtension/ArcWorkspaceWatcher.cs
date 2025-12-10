@@ -55,8 +55,10 @@ public sealed class ArcWorkspaceWatcher :
 
         try
         {
-            var analyzer = new SolutionDependencyAnalyzer();
-            var graph = await analyzer.AnalyzeSolutionAsync(solutionPath, cancellationToken);
+            var analyzer = new SolutionDependencyAnalyzer();          
+            var checker = new MockVulnerabilityChecker();
+
+            var graph = await analyzer.AnalyzeSolutionAsync(solutionPath, checker, cancellationToken);
 
             LayerConfig cfg;
             var configPath = Path.Combine(Path.GetDirectoryName(solutionPath) ?? "", "layer.config.json");
@@ -86,9 +88,23 @@ public sealed class ArcWorkspaceWatcher :
 
             await RunOnUiAsync(() =>
             {
+                Data.DependencyGraph = graph;
                 Data.StatusMessage = $"Elemzés kész. Nodes: {graph.Nodes.Count}, Edges: {graph.Edges.Count}. Violations: {graph.Edges.Count(e => e.IsViolation)}";
             }, cancellationToken);
 
+            var vulnerablePackages = graph.Nodes.Values
+                .Where(n => !string.IsNullOrEmpty(n.PackageId) && n.IsVulnerable)
+                .Select(n => $"{n.PackageId} {n.PackageVersion}".Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(s => s, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            await RunOnUiAsync(() =>
+            {
+                Data.VulnerablePackages.Clear();
+                foreach (var vp in vulnerablePackages)
+                    Data.VulnerablePackages.Add(vp);
+            }, cancellationToken);
 
             var nodeList = graph.Nodes.Select(n => new GraphLayoutHelper.Node
             {
@@ -105,19 +121,36 @@ public sealed class ArcWorkspaceWatcher :
 
             var dto = new
             {
-                nodes = nodeList.Select(n => new
+                nodes = nodeList.Select(n =>
                 {
-                    id = n.Id,
-                    label = graph.Nodes.FirstOrDefault(g => g.Value.Id == n.Id) is var gn ? (gn.Value.Name ?? n.Id) : n.Id,
-                    group = graph.Nodes.FirstOrDefault(g => g.Value.Id == n.Id) is var gg ? (gg.Value.Layer.ToString() ?? string.Empty) : string.Empty,
-                    x = Math.Round(n.X, 2),
-                    y = Math.Round(n.Y, 2)
+                    var gn = graph.Nodes.TryGetValue(n.Id, out var node) ? node : null;
+                    return new
+                    {
+                        id = n.Id,
+                        label = gn?.Name ?? n.Id,
+                        group = gn != null ? gn.Layer.ToString() : string.Empty,
+                        x = Math.Round(n.X, 2),
+                        y = Math.Round(n.Y, 2),
+                        isVulnerable = gn?.IsVulnerable ?? false,
+                        packageId = gn?.PackageId ?? string.Empty,
+                        packageVersion = gn?.PackageVersion ?? string.Empty,
+                        methodCount = gn?.MethodCount ?? 0,
+                        propertyCount = gn?.PropertyCount ?? 0,
+                        fieldCount = gn?.FieldCount ?? 0,
+                        sourceFiles = gn?.SourceFilePaths ?? new List<string>()
+                    };
                 }).ToArray(),
-                edges = edgeList.Select(e => new
+                edges = edgeList.Select(e =>
                 {
-                    source = e.Source,
-                    target = e.Target,
-                    weight = 1
+                    var ge = graph.Edges.FirstOrDefault(x => x.SourceId == e.Source && x.TargetId == e.Target);
+                    return new
+                    {
+                        source = e.Source,
+                        target = e.Target,
+                        weight = ge?.Weight ?? 1,
+                        isViolation = ge?.IsViolation ?? false,
+                        kind = ge?.Kind.ToString() ?? string.Empty
+                    };
                 }).ToArray()
             };
 

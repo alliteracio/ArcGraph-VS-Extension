@@ -24,7 +24,7 @@ namespace ArcCore.Visualisation
         {
             var port = forcePort ?? GetRandomUnusedPort();
             _listeningPort = port;
-           
+
             try
             {
                 var prefix = $"http://127.0.0.1:{port}/";
@@ -332,8 +332,7 @@ namespace ArcCore.Visualisation
         }
 
         private static string BuildIndexHtml()
-        {
-            // Full interactive index: Cytoscape + SSE (tries SSE, uses preset positions if provided, otherwise falls back to cose)
+        {       
             return @"
 <!doctype html>
 <html>
@@ -341,25 +340,72 @@ namespace ArcCore.Visualisation
   <meta charset='utf-8'>
   <title>ArcGraph Live</title>
   <style>
-    html,body,#cy { height:100%; width:100%; margin:0; padding:0; }
-    #status { padding:8px; font-family:Segoe UI,Arial; }
+    html,body { height:100%; width:100%; margin:0; padding:0; font-family:Segoe UI,Arial; }
+    #container { display:flex; height:100vh; width:100vw; }
+    #cy { flex:1 1 auto; height:100%; width:100%; }
+    #sidebar { width:320px; padding:12px; box-sizing:border-box; border-left:1px solid #ddd; overflow:auto; background:#fafafa; }
+    #status { padding:8px; font-size:13px; margin-bottom:8px; }
+    .badge { display:inline-block; padding:4px 8px; background:#eee; border-radius:4px; margin-right:6px; font-size:12px; }
+    .vuln { color:#d9534f; font-weight:600; }
+    .meta { font-size:12px; color:#333; margin-top:6px; }
+    .vuln-list { margin-top:8px; }
+    .vuln-item { padding:6px; border:1px solid #f1d0d0; background:#fff6f6; margin-bottom:6px; border-radius:4px; }
+    .legend-row { margin-bottom:6px; display:flex; align-items:center; }
+    .legend-swatch { width:14px; height:14px; margin-right:6px; border:1px solid #999; }
   </style>
   <script src='https://unpkg.com/cytoscape@3.24.0/dist/cytoscape.min.js'></script>
 </head>
 <body>
-  <div id='status'>Initializing...</div>
-  <div id='cy'></div>
+  <div id='container'>
+    <div id='cy'></div>
+    <div id='sidebar'>
+      <div id='status'>Initializing...</div>
+      <div id='summary' class='meta'></div>
+
+      <div style='margin-top:8px;'>
+        <div class='legend-row'><div class='legend-swatch' style='background:#1f77b4'></div>UI</div>
+        <div class='legend-row'><div class='legend-swatch' style='background:#2ca02c'></div>Application</div>
+        <div class='legend-row'><div class='legend-swatch' style='background:#ff7f0e'></div>Domain</div>
+        <div class='legend-row'><div class='legend-swatch' style='background:#9467bd'></div>Infrastructure</div>
+        <div class='legend-row'><div class='legend-swatch' style='background:#d9534f'></div>Vulnerable package</div>
+      </div>
+
+      <div id='node-details' style='margin-top:12px;'>
+        <h3 id='nd-label' style='margin:6px 0 4px 0;font-size:16px'></h3>
+        <div id='nd-meta' class='meta'></div>
+        <div id='nd-files' class='meta'></div>
+        <div id='nd-package' class='meta'></div>
+        <div id='nd-vulns' class='vuln-list'></div>
+      </div>
+    </div>
+  </div>
 
   <script>
     let cy = null;
     let pollHandle = null;
+
+    function colorForGroup(g) {
+      switch((g||'').toLowerCase()) {
+        case 'ui': return '#1f77b4';
+        case 'application': return '#2ca02c';
+        case 'domain': return '#ff7f0e';
+        case 'infrastructure': return '#9467bd';
+        default: return '#7f7f7f';
+      }
+    }
 
     async function fetchGraph() {
       try {
         const r = await fetch('/api/graph', { cache: 'no-store' });
         if (!r.ok) throw new Error('HTTP ' + r.status);
         const data = await r.json();
-        document.getElementById('status').innerText = 'Nodes: ' + (data.nodes?data.nodes.length:0) + ', Edges: ' + (data.edges?data.edges.length:0) + ' (updated ' + new Date().toLocaleTimeString() + ')';
+
+        const nodeCount = data.nodes ? data.nodes.length : 0;
+        const edgeCount = data.edges ? data.edges.length : 0;
+        const violations = data.edges ? data.edges.filter(e => e.isViolation).length : 0;
+        document.getElementById('status').innerText = 'Nodes: ' + nodeCount + ', Edges: ' + edgeCount + ', Violations: ' + violations + ' (updated ' + new Date().toLocaleTimeString() + ')';
+        document.getElementById('summary').innerText = '';
+
         updateGraph(data);
       } catch (e) {
         document.getElementById('status').innerText = 'Failed to fetch graph: ' + e;
@@ -368,12 +414,11 @@ namespace ArcCore.Visualisation
     }
 
     function updateGraph(data) {
-      // Build cytoscape elements and collect whether positions exist
       const elements = [];
       let hasPositions = false;
 
       for (const n of (data.nodes || [])) {
-        const nodeData = { id: n.id, label: n.label || n.id, group: n.group };
+        const nodeData = { id: n.id, label: n.label || n.id, group: n.group || '', isVulnerable: !!n.isVulnerable, packageId: n.packageId||'', packageVersion:n.packageVersion||'', methodCount:n.methodCount||0, propertyCount:n.propertyCount||0, fieldCount:n.fieldCount||0, sourceFiles:n.sourceFiles||[] };
         const el = { data: nodeData };
         if (typeof n.x === 'number' && typeof n.y === 'number') {
           hasPositions = true;
@@ -383,7 +428,7 @@ namespace ArcCore.Visualisation
       }
 
       for (const e of (data.edges || [])) {
-        elements.push({ data: { id: (e.source+'-'+e.target), source: e.source, target: e.target, weight: e.weight || 1, isViolation: e.isViolation || false } });
+        elements.push({ data: { id: (e.source+'-'+e.target), source: e.source, target: e.target, weight: e.weight || 1, isViolation: !!e.isViolation, kind: e.kind || '' } });
       }
 
       if (!cy) {
@@ -391,40 +436,74 @@ namespace ArcCore.Visualisation
           container: document.getElementById('cy'),
           elements: elements,
           style: [
-            { selector: 'node', style: { 'label': 'data(label)', 'text-valign':'center', 'background-color': '#67a9cf', 'width': 40, 'height': 40 } },
+            { selector: 'node', style: { 'label': 'data(label)', 'text-valign':'center', 'text-halign':'center', 'background-color': '#67a9cf', 'width': 'mapData(methodCount, 0, 50, 24, 48)', 'height': 'mapData(methodCount, 0, 50, 24, 48)', 'border-width': 2, 'border-color':'#fff' } },
+            // group-specific colors (use unquoted identifiers in selectors to avoid needing escaped quotes)
+            { selector: 'node[group = UI]', style: { 'background-color': '#1f77b4' } },
+            { selector: 'node[group = Application]', style: { 'background-color': '#2ca02c' } },
+            { selector: 'node[group = Domain]', style: { 'background-color': '#ff7f0e' } },
+            { selector: 'node[group = Infrastructure]', style: { 'background-color': '#9467bd' } },
+            // vulnerable marker: red border
+            { selector: 'node[isVulnerable = true]', style: { 'border-color': '#d9534f', 'border-width': 6 } },
             { selector: 'edge', style: { 'width': 'mapData(weight, 1, 10, 1, 6)', 'line-color': '#999', 'target-arrow-shape': 'triangle', 'target-arrow-color': '#999' } },
-            { selector: 'edge[isViolation = true]', style: { 'line-color': '#d9534f', 'target-arrow-color': '#d9534f' } }
+            { selector: 'edge[isViolation = true]', style: { 'line-color': '#d9534f', 'target-arrow-color': '#d9534f', 'width': 3 } }
           ],
           layout: hasPositions ? { name: 'preset' } : { name: 'cose', animate: true }
         });
 
         cy.on('tap', 'node', (evt) => {
           const node = evt.target;
-          alert(`${node.data('label')}\\nGroup: ${node.data('group')}`);
+          showNodeDetails(node.data());
         });
       } else {
-        // If positions available, update with preset positions and don't re-run heavy layout
-        if (hasPositions) {
-          // keep viewport (pan/zoom) stable: apply positions and refresh
-          cy.batch(() => {
-            cy.nodes().forEach(n => {
-              const incoming = elements.find(e => e.data && e.data.id === n.id());
-              if (incoming && incoming.position) {
-                n.position(incoming.position);
-              }
-            });
-            // update edges/nodes data if necessary
-            cy.elements().remove();
-            cy.add(elements);
-          });
-          // ensure preset layout is applied
-          cy.layout({ name: 'preset' }).run();
-        } else {
-          // replace elements and run dynamic layout
+        // update in a minimal disruptive way
+        const existingIds = new Set(cy.nodes().map(n => n.id()));
+        // remove stale
+        cy.batch(() => {
           cy.elements().remove();
           cy.add(elements);
+        });
+
+        if (hasPositions) {
+          cy.layout({ name: 'preset' }).run();
+        } else {
           cy.layout({ name: 'cose', animate: true }).run();
         }
+      }
+    }
+
+    function showNodeDetails(d) {
+      document.getElementById('nd-label').innerText = d.label || d.id;
+      const meta = [];
+      if (d.group) meta.push('Layer: ' + d.group);
+      meta.push('Methods: ' + (d.methodCount||0) + ', Props: ' + (d.propertyCount||0) + ', Fields: ' + (d.fieldCount||0));
+      document.getElementById('nd-meta').innerText = meta.join(' | ');
+
+      if (d.sourceFiles && d.sourceFiles.length > 0) {
+        document.getElementById('nd-files').innerText = 'Sources: ' + d.sourceFiles.slice(0,5).join('; ');
+      } else {
+        document.getElementById('nd-files').innerText = '';
+      }
+
+      if (d.packageId) {
+        document.getElementById('nd-package').innerHTML = 'Package: <b>' + d.packageId + '</b> ' + (d.packageVersion ? ('v' + d.packageVersion) : '');
+      } else {
+        document.getElementById('nd-package').innerText = '';
+      }
+
+      const vulnsContainer = document.getElementById('nd-vulns');
+      vulnsContainer.innerHTML = '';
+      if (d.vulnerabilities && d.vulnerabilities.length) {
+        for (const v of d.vulnerabilities) {
+          const div = document.createElement('div');
+          div.className = 'vuln-item';
+          div.innerHTML = '<b>' + (v.id||'') + '</b> ' + (v.title||'') + ' <span style=""color:#a00"">(' + (v.severity||'') + ')</span><div style=""font-size:12px"">' + (v.description||'') + '</div>';
+          vulnsContainer.appendChild(div);
+        }
+      } else if (d.isVulnerable) {
+        const div = document.createElement('div');
+        div.className = 'vuln-item';
+        div.innerHTML = '<b>Known vulnerable package</b>';
+        vulnsContainer.appendChild(div);
       }
     }
 
@@ -449,11 +528,9 @@ namespace ArcCore.Visualisation
         es.onopen = function() {
           connected = true;
           console.log('SSE connected');
-          // stop any polling if running
           stopPolling();
         };
         es.onmessage = function(e) {
-          // server signaled update -> fetch updated graph immediately
           console.log('SSE message', e.data);
           fetchGraph();
         };
@@ -463,7 +540,6 @@ namespace ArcCore.Visualisation
           startPolling(2000);
         };
 
-        // If connection not established quickly, start polling as guard
         setTimeout(() => {
           if (!connected) {
             console.log('SSE not established quickly; starting polling fallback');
@@ -476,7 +552,6 @@ namespace ArcCore.Visualisation
       }
     }
 
-    // initial fetch + SSE attempt (polling only if SSE fails)
     fetchGraph();
     setupSse();
   </script>

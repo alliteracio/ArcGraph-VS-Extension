@@ -23,6 +23,8 @@ public sealed class GraphNode
     public int FieldCount { get; set; } = 0;
     public string? PackageId { get; set; }
     public string? PackageVersion { get; set; }
+    public bool IsVulnerable { get; set; } = false;
+    public List<ArcCore.Analysis.VulnerabilityInfo> Vulnerabilities { get; set; } = new();
 
     public override string ToString() => Id;
     public Layer Layer { get; set; } = Layer.Unknown;

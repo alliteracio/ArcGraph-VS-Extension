@@ -20,6 +20,8 @@ public sealed class ArcWorkspaceViewModel : ObservableObject
     [DataMember]
     public ObservableCollection<string> Files { get; } = new();
 
+    public ObservableCollection<string> VulnerablePackages { get; } = new();
+
     private string? _solutionPath;
     public string? SolutionPath
     {
@@ -43,7 +45,7 @@ public sealed class ArcWorkspaceViewModel : ObservableObject
         set => SetProperty(ref _statusMessage, value);
     }
 
-    private string _webViewUri;
+    private string _webViewUri = string.Empty;
 
     [DataMember]
     public string WebViewUri
@@ -122,7 +124,7 @@ public sealed class ArcWorkspaceViewModel : ObservableObject
         {
             Debug.WriteLine("[ArcWorkspaceViewModel] Failed to start LocalGraphServer: " + ex);
             StatusMessage = "Nem sikerült elindítani a localhostot: " + ex.Message;
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(StatusMessage)));          
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(StatusMessage)));
         }
         finally
         {
@@ -134,7 +136,7 @@ public sealed class ArcWorkspaceViewModel : ObservableObject
     public void UpdateGraphJson(string graphJson)
     {
         if (_server == null)
-        {           
+        {
             _ = EnsureServerStartedAsync().ContinueWith(t =>
             {
                 try
