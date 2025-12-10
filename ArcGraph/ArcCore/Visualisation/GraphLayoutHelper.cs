@@ -22,13 +22,13 @@ namespace ArcCore.Visualisation
             public string Target { get; set; } = default!;
         }
 
-        public static void ComputeLayoutObsolate(IList<Node> nodes, IList<Edge> edges, int width = 800, int height = 600, int iterations = 400)
+        public static void ComputeLayoutObsolate(IList<Node> nodes, IList<Edge> edges, int width = 800, int height = 600, int iterations = 400, double spacingFactor = 1.25)
         {
             if (nodes == null || nodes.Count == 0) return;
 
             var n = nodes.Count;
-            var rand = new Random(0); 
-          
+            var rand = new Random(0);
+
             double radius = Math.Min(width, height) * 0.35;
             for (int i = 0; i < n; i++)
             {
@@ -37,8 +37,8 @@ namespace ArcCore.Visualisation
                 nodes[i].Y = radius * Math.Sin(angle) + (rand.NextDouble() - 0.5) * 10;
             }
 
-            var k = Math.Sqrt((width * height) / (double)n); 
-            double t = Math.Max(width, height) / 10.0; 
+            var k = Math.Sqrt((width * height) / (double)n);
+            double t = Math.Max(width, height) / 10.0;
             double cooling = t / (iterations + 1.0);
 
             var adjacency = new HashSet<(string, string)>();
@@ -111,32 +111,17 @@ namespace ArcCore.Visualisation
                 if (t <= 0) break;
             }
 
-            double minX = nodes.Min(nd => nd.X);
-            double maxX = nodes.Max(nd => nd.X);
-            double minY = nodes.Min(nd => nd.Y);
-            double maxY = nodes.Max(nd => nd.Y);
-
-            double spanX = Math.Max(1e-6, maxX - minX);
-            double spanY = Math.Max(1e-6, maxY - minY);
-
-            double margin = 40;
-            double targetW = Math.Max(100, width - 2 * margin);
-            double targetH = Math.Max(100, height - 2 * margin);
-
-            for (int i = 0; i < n; i++)
-            {
-                nodes[i].X = margin + ((nodes[i].X - minX) / spanX) * targetW;
-                nodes[i].Y = margin + ((nodes[i].Y - minY) / spanY) * targetH;
-            }
+            
+            NormalizePositions(nodes, width, height, spacingFactor);
         }
 
-        public static void ComputeLayout(IList<Node> nodes, IList<Edge> edges, int width = 800, int height = 600, int iterations = 400)
+        public static void ComputeLayout(IList<Node> nodes, IList<Edge> edges, int width = 800, int height = 600, int iterations = 400, double spacingFactor = 1.25)
         {
             if (nodes == null || nodes.Count == 0) return;
 
             try
             {
-                ComputeLayoutWithMsagl(nodes, edges, width, height);
+                ComputeLayoutWithMsagl(nodes, edges, width, height, spacingFactor);
                 return;
             }
             catch (Exception ex)
@@ -145,10 +130,10 @@ namespace ArcCore.Visualisation
             }
 
             // fallback
-            ComputeLayoutObsolate(nodes, edges, width, height, iterations);
+            ComputeLayoutObsolate(nodes, edges, width, height, iterations, spacingFactor);
         }
 
-        private static void ComputeLayoutWithMsagl(IList<Node> nodes, IList<Edge> edges, int width, int height)
+        private static void ComputeLayoutWithMsagl(IList<Node> nodes, IList<Edge> edges, int width, int height, double spacingFactor)
         {
             var g = new Microsoft.Msagl.Drawing.Graph();
 
@@ -178,12 +163,12 @@ namespace ArcCore.Visualisation
                 throw new InvalidOperationException("MSAGL geometry graph not available.");
 
             var settings = new SugiyamaLayoutSettings
-            {              
+            {
             };
 
             var sug = new LayeredLayout(geometryGraph, settings);
             sug.Run();
-           
+
             foreach (var dn in g.Nodes)
             {
                 var id = dn.Id;
@@ -199,10 +184,10 @@ namespace ArcCore.Visualisation
                 }
             }
 
-            NormalizePositions(nodes, width, height);
+            NormalizePositions(nodes, width, height, spacingFactor);
         }
 
-        private static void NormalizePositions(IList<Node> nodes, int width, int height)
+        private static void NormalizePositions(IList<Node> nodes, int width, int height, double spacingFactor)
         {
             if (nodes == null || nodes.Count == 0) return;
 
@@ -222,6 +207,27 @@ namespace ArcCore.Visualisation
             {
                 nodes[i].X = margin + ((nodes[i].X - minX) / spanX) * targetW;
                 nodes[i].Y = margin + ((nodes[i].Y - minY) / spanY) * targetH;
+            }
+           
+            if (spacingFactor <= 1.0) return;
+
+            double centerX = nodes.Average(n => n.X);
+            double centerY = nodes.Average(n => n.Y);
+
+            double maxAllowedX = width - margin;
+            double minAllowedX = margin;
+            double maxAllowedY = height - margin;
+            double minAllowedY = margin;
+
+            for (int i = 0; i < nodes.Count; i++)
+            {
+                var dx = nodes[i].X - centerX;
+                var dy = nodes[i].Y - centerY;
+                nodes[i].X = centerX + dx * spacingFactor;
+                nodes[i].Y = centerY + dy * spacingFactor;
+
+                nodes[i].X = Math.Max(minAllowedX, Math.Min(maxAllowedX, nodes[i].X));
+                nodes[i].Y = Math.Max(minAllowedY, Math.Min(maxAllowedY, nodes[i].Y));
             }
         }
     }

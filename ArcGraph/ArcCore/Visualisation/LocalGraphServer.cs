@@ -518,15 +518,24 @@ namespace ArcCore.Visualisation
     function showNodeDetails(d) {
       document.getElementById('nd-label').innerText = d.label || d.id;
       const meta = [];
-      if (d.group) meta.push('Layer: ' + d.group);
-      meta.push('Degree: ' + (d.degree || 0));
-      meta.push('Methods: ' + (d.methodCount||0) + ', Props: ' + (d.propertyCount||0) + ', Fields: ' + (d.fieldCount||0));
-      document.getElementById('nd-meta').innerText = meta.join(' | ');
 
-      if (d.sourceFiles && d.sourceFiles.length > 0) {
-        document.getElementById('nd-files').innerText = 'Sources: ' + d.sourceFiles.slice(0,5).join('; ');
-      } else {
+      if (d.isExternal) {
+       
+        meta.push('External package (no source available)');
+        
+        document.getElementById('nd-meta').innerText = meta.join(' | ');
         document.getElementById('nd-files').innerText = '';
+      } else {
+        if (d.group) meta.push('Layer: ' + d.group);
+        meta.push('Degree: ' + (d.degree || 0));
+        meta.push('Methods: ' + (d.methodCount||0) + ', Props: ' + (d.propertyCount||0) + ', Fields: ' + (d.fieldCount||0));
+        document.getElementById('nd-meta').innerText = meta.join(' | ');
+
+        if (d.sourceFiles && d.sourceFiles.length > 0) {
+          document.getElementById('nd-files').innerText = 'Sources: ' + d.sourceFiles.slice(0,5).join('; ');
+        } else {
+          document.getElementById('nd-files').innerText = '';
+        }
       }
 
       if (d.packageId) {
