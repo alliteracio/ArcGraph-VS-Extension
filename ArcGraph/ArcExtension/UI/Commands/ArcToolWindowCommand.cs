@@ -2,6 +2,7 @@
 //  Alexandra Apró
 //  University of Szeged
 
+using ArcExtension.UI.Views;
 using Microsoft.VisualStudio.Extensibility;
 using Microsoft.VisualStudio.Extensibility.Commands;
 
@@ -18,7 +19,7 @@ public class ArcToolWindowCommand : Command
     public override CommandConfiguration CommandConfiguration => new("ArcGraph")
     {
         Placements = new[] { CommandPlacement.KnownPlacements.ViewOtherWindowsMenu },
-        Icon = new(ImageMoniker.KnownValues.ToolWindow, IconSettings.IconAndText),
+        Icon = new(ImageMoniker.KnownValues.DependancyGraph, IconSettings.IconAndText),
     };
 
     public override async Task ExecuteCommandAsync(IClientContext context, CancellationToken cancellationToken)
