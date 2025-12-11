@@ -2,6 +2,7 @@
 //  Alexandra Apró
 //  University of Szeged
 
+using ArcExtension.UI.ViewModels;
 using Microsoft.VisualStudio.Extensibility.UI;
 
 namespace ArcExtension.UI.Controls;

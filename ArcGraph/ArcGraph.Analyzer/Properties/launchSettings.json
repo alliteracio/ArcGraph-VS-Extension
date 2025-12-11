@@ -1,8 +1,0 @@
-{
-  "profiles": {
-    "ArcGraph.Analyzer": {
-      "commandName": "Project",
-      "commandLineArgs": "\"C:\\Users\\Home\\source\\repos\\alliteracio\\ArcGraph-VS-Extension\\ArcGraph\\ArcGraph.sln\" \"out.dgml\""
-    }
-  }
-}
