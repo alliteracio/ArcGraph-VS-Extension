@@ -20,8 +20,8 @@ internal class ExtensionEntrypoint : Extension
                 id: "ArcExtension.a13939ae-036a-4290-9efb-89d1d63dde1a",
                 version: ExtensionAssemblyVersion,
                 publisherName: "Alexandra Apró",
-                displayName: "ArcExtension",
-                description: "Extension description")
+                displayName: "ArcGraph",
+                description: "Dependency Graph Analyzer that provides an interactive Tool Window for building, analyzing and visualizing dependency graphs of .NET solutions. ")
     };
 
     /// <inheritdoc />
